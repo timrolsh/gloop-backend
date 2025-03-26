@@ -1,0 +1,32 @@
+services:
+    gloob-develop:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        ports:
+            - "3001:3000"
+        networks:
+            - develop
+        env_file:
+            - .env # Loads DATABASE_URL from the .env file
+        depends_on:
+            - postgres-gloob
+
+    postgres-gloob:
+        image: postgres:14
+        env_file:
+            - .env # Loads POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB from the .env file
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        networks:
+            - develop
+        ports:
+            - "5434:5432"
+
+volumes:
+    postgres_data:
+
+networks:
+    develop:
+        external: true
+#Sun Nov 10 15:39 PM
