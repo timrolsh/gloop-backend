@@ -7,7 +7,11 @@ export const configuration = () => ({
         isProduction: process.env.APP_IS_PRODUCTION === "true",
     },
     database: {
-        databaseUrl: process.env.DATABASE_URL,
+        databaseHost: process.env.DATABASE_HOST,
+        databasePort: parseInt(process.env.DATABASE_PORT),
+        databaseUser: process.env.DATABASE_USER,
+        databasePassword: process.env.DATABASE_PASSWORD,
+        databaseName: process.env.DATABASE_NAME,
     },
     jwt: {
         secret: process.env.JWT_SECRET,
