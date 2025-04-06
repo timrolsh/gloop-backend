@@ -1,16 +1,14 @@
 services:
-    gloob-develop:
+    backend:
         build:
             context: .
             dockerfile: Dockerfile
         ports:
-            - "3001:3000"
-        networks:
-            - develop
+            - "8080:8080"
         env_file:
-            - .env # Loads DATABASE_URL from the .env file
-        depends_on:
-            - postgres-gloob
+            - .env # Loads env variables from the .env file
+        platform: linux/amd64
+        image: registry.digitalocean.com/gloop/backend
 
     postgres-gloob:
         image: postgres:14
@@ -18,10 +16,8 @@ services:
             - .env # Loads POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB from the .env file
         volumes:
             - postgres_data:/var/lib/postgresql/data
-        networks:
-            - develop
         ports:
-            - "5434:5432"
+            - 5432:5432
 
 volumes:
     postgres_data:
