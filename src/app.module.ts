@@ -1,5 +1,9 @@
 import { WatcherModule } from "./app/watcher/watcher.module";
-import { ClassSerializerInterceptor, Module, ValidationPipe } from "@nestjs/common";
+import {
+    ClassSerializerInterceptor,
+    Module,
+    ValidationPipe,
+} from "@nestjs/common";
 import { AppConfigModule } from "./configuration/app.config.module";
 import { DatabaseModule } from "./database/database.module";
 import { WalletModule } from "./app/wallet/wallet.module";
@@ -13,9 +17,20 @@ import { LiquidationModule } from "./app/liquidation/liquidation.module";
 import { BlockCheckerModule } from "./app/block-checker/block-checker.module";
 import { WatcherReferralModule } from "./app/watcher-referral/watcher-referral.module";
 import { UpdateLeaderboardModule } from "./app/update-leaderboard/update-leaderboard.module";
-
+import { AppController } from "./app.controller";
 @Module({
-    imports: [AppConfigModule, DatabaseModule, AuthModule, WalletModule, TransactionModule, WatcherModule, LiquidationModule, BlockCheckerModule, WatcherReferralModule, UpdateLeaderboardModule],
+    imports: [
+        AppConfigModule,
+        DatabaseModule,
+        AuthModule,
+        WalletModule,
+        TransactionModule,
+        WatcherModule,
+        LiquidationModule,
+        BlockCheckerModule,
+        WatcherReferralModule,
+        UpdateLeaderboardModule,
+    ],
     providers: [
         JwtService,
         {
@@ -31,5 +46,7 @@ import { UpdateLeaderboardModule } from "./app/update-leaderboard/update-leaderb
             useClass: ClassSerializerInterceptor,
         },
     ],
+    controllers: [AppController],
 })
 export class AppModule {}
+

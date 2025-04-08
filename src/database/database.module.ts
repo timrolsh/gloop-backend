@@ -14,7 +14,12 @@ import { TlsOptions } from "tls";
             useFactory: (conf: ConfigService): TypeOrmModuleOptions => {
                 return {
                     type: "postgres",
-                    url: conf.get("DATABASE_URL"),
+                    host: conf.get("DATABASE_HOST"),
+                    port: conf.get("DATABASE_PORT"),
+                    username: conf.get("DATABASE_USER"),
+                    password: conf.get("DATABASE_PASSWORD"),
+                    database: conf.get("DATABASE_NAME"),
+                    ssl: { rejectUnauthorized: false },
                     entities: ["**/*.entity.js"],
                     synchronize: false,
                 };
@@ -26,3 +31,4 @@ import { TlsOptions } from "tls";
     exports: [TypeOrmModule],
 })
 export class DatabaseModule {}
+
