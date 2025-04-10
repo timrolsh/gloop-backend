@@ -19,7 +19,7 @@ export const configuration = () => ({
         refreshTokenTime: process.env.JWT_REFRESH_TOKEN_TIME,
     },
     auth: {
-        greeting: "Hi, How Are you? Welcome to the Gloop",
+        greeting: process.env.GREETING || "Welcome to the Gloop",
     },
     crypto: {
         network: process.env.NETWORK,
