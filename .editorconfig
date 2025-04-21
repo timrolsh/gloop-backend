@@ -1,0 +1,8 @@
+# set the spaces to 2
+[*]
+indent_size = 2
+indent_style = space
+# set the line length to 100
+max_line_length = 100
+
+

@@ -1,7 +1,7 @@
-import { Module } from "@nestjs/common";
-import { SeedingService } from "./seeding.service";
+import {Module} from "@nestjs/common";
+import {SeedingService} from "./seeding.service";
 
 @Module({
-    providers: [SeedingService],
+  providers: [SeedingService]
 })
 export class SeedingModule {}

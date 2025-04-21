@@ -1,28 +1,25 @@
-import { config } from "dotenv";
-import { DataSource, DataSourceOptions } from "typeorm";
+import {config} from "dotenv";
+import {DataSource, DataSourceOptions} from "typeorm";
 import * as path from "path";
 import * as fs from "fs";
-import { TlsOptions } from "tls";
+import {TlsOptions} from "tls";
 
 const envFilePath = `${process.env.NODE_ENV || ""}.env`;
-config({ path: envFilePath });
+config({path: envFilePath});
 
 const dataSourceOptions: DataSourceOptions = {
-    type: "postgres",
-    host: process.env.DATABASE_HOST,
-    port: parseInt(process.env.DATABASE_PORT),
-    username: process.env.DATABASE_USER,
-    password: process.env.DATABASE_PASSWORD,
-    database: process.env.DATABASE_NAME,
-    ssl: { rejectUnauthorized: false },
-    entities: [
-        path.join(__dirname, "../**/**/**/**/entities/", "*.entity.{ts,js}"),
-    ],
-    migrations: [path.join(__dirname, "./migrations", "*.{ts,js}")],
-    migrationsTableName: "typeorm_migrations",
-    synchronize: false,
-    logging: false,
+  type: "postgres",
+  host: process.env.DATABASE_HOST,
+  port: parseInt(process.env.DATABASE_PORT),
+  username: process.env.DATABASE_USER,
+  password: process.env.DATABASE_PASSWORD,
+  database: process.env.DATABASE_NAME,
+  ssl: {rejectUnauthorized: false},
+  entities: [path.join(__dirname, "../**/**/**/**/entities/", "*.entity.{ts,js}")],
+  migrations: [path.join(__dirname, "./migrations", "*.{ts,js}")],
+  migrationsTableName: "typeorm_migrations",
+  synchronize: false,
+  logging: false
 };
 
 export default new DataSource(dataSourceOptions);
-
