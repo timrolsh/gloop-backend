@@ -32,8 +32,12 @@ export class BlockCheckerService {
     private initializeProviderAndContract() {
         try {
             const rpcUrl = this.config.get<string>("crypto.rpcUrl");
-            const contractAddress = this.config.get<string>("crypto.contractAddress");
-            const contractAddressReferral = this.config.get<string>("crypto.gmPointContactAddress");
+            const contractAddress = this.config.get<string>(
+                "crypto.contractAddress"
+            );
+            const contractAddressReferral = this.config.get<string>(
+                "crypto.gmPointContactAddress"
+            );
 
             if (!rpcUrl || !contractAddress) {
                 this.logger.error("Missing contract or RPC URL configuration.");
@@ -41,18 +45,32 @@ export class BlockCheckerService {
             }
 
             this.provider = new ethers.JsonRpcProvider(rpcUrl);
-            this.contract = new ethers.Contract(contractAddress, this.abi, this.provider);
-            this.contractReferral = new ethers.Contract(contractAddressReferral, this.abiReferral, this.provider);
+            this.contract = new ethers.Contract(
+                contractAddress,
+                this.abi,
+                this.provider
+            );
+            this.contractReferral = new ethers.Contract(
+                contractAddressReferral,
+                this.abiReferral,
+                this.provider
+            );
         } catch (error) {
-            this.logger.error("Error initializing provider and contract:", error);
+            this.logger.error(
+                "Error initializing provider and contract:",
+                error
+            );
         }
     }
     @Cron(CronExpression.EVERY_HOUR)
     async checkMissingBlocks(): Promise<void> {
         try {
             const latestBlockNumber = await this.provider.getBlockNumber();
-            const missingBlocks = await this.blockService.findMissingBlocks(latestBlockNumber);
-            this.logger.log(`Found ${missingBlocks.length} missing blocks to check.`);
+            const missingBlocks =
+                await this.blockService.findMissingBlocks(latestBlockNumber);
+            this.logger.log(
+                `Found ${missingBlocks.length} missing blocks to check.`
+            );
 
             const walletAddresses = await this.walletService.getAllWallets();
             const batchSize = 10000;
@@ -69,7 +87,9 @@ export class BlockCheckerService {
             for (let i = 0; i < missingBlocks.length; i += insertBatchSize) {
                 await new Promise((resolve) => setImmediate(resolve));
                 const blockBatch = missingBlocks.slice(i, i + insertBatchSize);
-                const blockDtos = blockBatch.map((blockNumber) => new CreateBlockDto(blockNumber, ""));
+                const blockDtos = blockBatch.map(
+                    (blockNumber) => new CreateBlockDto(blockNumber, "")
+                );
                 await this.blockService.createBlocks(blockDtos);
             }
 
@@ -85,24 +105,62 @@ export class BlockCheckerService {
 
             await this.blockService.markLatestBlockAsChecked(latestBlockNo);
             this.logger.log(`Batch inserted ${missingBlocks.length} blocks.`);
-            this.logger.log(`Latest block ${latestBlockNo} has been marked as checked.`);
+            this.logger.log(
+                `Latest block ${latestBlockNo} has been marked as checked.`
+            );
         } catch (error) {
-            this.logger.error(`Failed to check missing blocks: ${error.message}`, error.stack);
+            this.logger.error(
+                `Failed to check missing blocks: ${error.message}`,
+                error.stack
+            );
         }
     }
 
-    private async processBlocksInBatch(blockNumbers: number[], walletAddresses: string[]): Promise<void> {
-        const borrowFilter = this.contract.filters.Borrow(walletAddresses, null);
-        const depositFilter = this.contract.filters.Deposit(walletAddresses, null);
-        const withdrawFilter = this.contract.filters.Withdraw(walletAddresses, null);
+    private async processBlocksInBatch(
+        blockNumbers: number[],
+        walletAddresses: string[]
+    ): Promise<void> {
+        const borrowFilter = this.contract.filters.Borrow(
+            walletAddresses,
+            null
+        );
+        const depositFilter = this.contract.filters.Deposit(
+            walletAddresses,
+            null
+        );
+        const withdrawFilter = this.contract.filters.Withdraw(
+            walletAddresses,
+            null
+        );
         const repayFilter = this.contract.filters.Repay(walletAddresses, null);
 
-        const borrowLogs = await this.contract.queryFilter(borrowFilter, Math.min(...blockNumbers), Math.max(...blockNumbers));
-        const depositLogs = await this.contract.queryFilter(depositFilter, Math.min(...blockNumbers), Math.max(...blockNumbers));
-        const withdrawLogs = await this.contract.queryFilter(withdrawFilter, Math.min(...blockNumbers), Math.max(...blockNumbers));
-        const repayLogs = await this.contract.queryFilter(repayFilter, Math.min(...blockNumbers), Math.max(...blockNumbers));
+        const borrowLogs = await this.contract.queryFilter(
+            borrowFilter,
+            Math.min(...blockNumbers),
+            Math.max(...blockNumbers)
+        );
+        const depositLogs = await this.contract.queryFilter(
+            depositFilter,
+            Math.min(...blockNumbers),
+            Math.max(...blockNumbers)
+        );
+        const withdrawLogs = await this.contract.queryFilter(
+            withdrawFilter,
+            Math.min(...blockNumbers),
+            Math.max(...blockNumbers)
+        );
+        const repayLogs = await this.contract.queryFilter(
+            repayFilter,
+            Math.min(...blockNumbers),
+            Math.max(...blockNumbers)
+        );
 
-        const allLogs = [...borrowLogs, ...depositLogs, ...withdrawLogs, ...repayLogs];
+        const allLogs = [
+            ...borrowLogs,
+            ...depositLogs,
+            ...withdrawLogs,
+            ...repayLogs,
+        ];
 
         if (allLogs.length > 0) {
             await this.processTransactionLogs(allLogs);
@@ -110,16 +168,24 @@ export class BlockCheckerService {
     }
 
     private async processTransactionLogs(logs: ethers.Log[]): Promise<void> {
-        const allWalletAddresses = new Set((await this.walletService.getAllWallets()).map((address) => address.toLowerCase()));
+        const allWalletAddresses = new Set(
+            (await this.walletService.getAllWallets()).map((address) =>
+                address.toLowerCase()
+            )
+        );
         const transactionPromises = logs.map(async (log) => {
             const parsedLog = this.contract.interface.parseLog(log);
             const { from, asset, amount } = parsedLog.args;
 
             const walletAddressCh = from.toLowerCase();
             if (allWalletAddresses.has(walletAddressCh)) {
-                const isExists = await this.transactionService.isExists(log.transactionHash);
+                const isExists = await this.transactionService.isExists(
+                    log.transactionHash
+                );
                 if (isExists) {
-                    this.logger.log(`Transaction ${log.transactionHash} already exists. Skipping.`);
+                    this.logger.log(
+                        `Transaction ${log.transactionHash} already exists. Skipping.`
+                    );
                     return;
                 }
                 const tokenName = this.getTokenName(asset);
@@ -132,7 +198,9 @@ export class BlockCheckerService {
                     amountNumber = ethers.formatUnits(amount, 18);
                 }
                 // const amountNumber = ethers.formatEther(amount);
-                const transaction = await this.provider.getTransaction(log.transactionHash);
+                const transaction = await this.provider.getTransaction(
+                    log.transactionHash
+                );
 
                 const createTransactionDto: CreateTransactionDto = {
                     walletAddress: from,
@@ -143,9 +211,13 @@ export class BlockCheckerService {
                     transactionHash: transaction.hash,
                 };
 
-                await await this.transactionService.create(createTransactionDto);
+                await await this.transactionService.create(
+                    createTransactionDto
+                );
 
-                this.logger.log(`Processed transaction ${transaction.hash} from block ${transaction.blockNumber}.`);
+                this.logger.log(
+                    `Processed transaction ${transaction.hash} from block ${transaction.blockNumber}.`
+                );
             }
         });
 
@@ -171,7 +243,9 @@ export class BlockCheckerService {
     }
 
     private getEnumValueFromName(event: string): ExistsEvent | undefined {
-        const enumValue = Object.values(ExistsEvent).find((value) => value === event);
+        const enumValue = Object.values(ExistsEvent).find(
+            (value) => value === event
+        );
         return enumValue ? (enumValue as ExistsEvent) : undefined;
     }
 
@@ -179,41 +253,54 @@ export class BlockCheckerService {
     async updateHealthFactor() {
         try {
             // Fetch wallet address-to-ID map
-            const walletMap = await this.walletService.getWalletAddressForHealthFactor();
+            const walletMap =
+                await this.walletService.getWalletAddressForHealthFactor();
             const usdc = this.config.get<string>("crypto.usdc");
             // Iterate over each wallet address and update health factor
             for (const [address, walletId] of Object.entries(walletMap)) {
                 try {
-                    const debt = await this.contract.borrowBalance(usdc, address);
+                    const debt = await this.contract.borrowBalance(
+                        usdc,
+                        address
+                    );
                     if (debt <= 0) {
                         continue;
                     }
                     // Call the contract method
-                    const healthFactor = await this.contract.calculateHealthFactor(
-                        usdc, // USDC contract address
-                        address,
-                        "0"
-                    );
+                    const healthFactor =
+                        await this.contract.calculateHealthFactor(
+                            usdc, // USDC contract address
+                            address,
+                            "0"
+                        );
 
                     // Format and calculate health factor percentage
                     const formattedHF = ethers.formatEther(healthFactor);
                     const health = parseFloat(formattedHF) * 100;
 
                     // Update the wallet in the database
-                    await this.walletService.updateHealthFactor(walletId, parseFloat(health.toFixed(0)));
+                    await this.walletService.updateHealthFactor(
+                        walletId,
+                        parseFloat(health.toFixed(0))
+                    );
                 } catch (err) {
-                    this.logger.error(`Failed to update healthFactor wallet ${address}: ${err.message}`);
+                    this.logger.error(
+                        `Failed to update healthFactor wallet ${address}: ${err.message}`
+                    );
                 }
             }
         } catch (err) {
-            this.logger.error(`Failed to update healthFactor factors: ${err.message}`);
+            this.logger.error(
+                `Failed to update healthFactor factors: ${err.message}`
+            );
         }
     }
 
     async updateHealthFactorByTransaction(walletAddress: string) {
         try {
             const usdc = this.config.get<string>("crypto.usdc");
-            const wallet = await this.walletService.getWalletByAddress(walletAddress);
+            const wallet =
+                await this.walletService.getWalletByAddress(walletAddress);
 
             if (!wallet) {
                 this.logger.error(`Wallet ${walletAddress} not found`);
@@ -233,18 +320,31 @@ export class BlockCheckerService {
                 const health = parseFloat(formattedHF) * 100;
 
                 // Update the wallet in the database
-                await this.walletService.updateHealthFactor(wallet.id, parseFloat(health.toFixed(0)));
+                let finalNumber = parseFloat(health.toFixed(0));
+                if (finalNumber > 1e9) {
+                    console.log("health cutoff for overflow done at 1e9");
+                    finalNumber = 1e9;
+                }
+                await this.walletService.updateHealthFactor(
+                    wallet.id,
+                    finalNumber
+                );
             } catch (err) {
-                this.logger.error(`Failed to update healthFactor wallet ${walletAddress}: ${err.message}`);
+                this.logger.error(
+                    `Failed to update healthFactor wallet ${walletAddress}: ${err.message}`
+                );
             }
         } catch (err) {
-            this.logger.error(`Failed to update healthFactor factors: ${err.message}`);
+            this.logger.error(
+                `Failed to update healthFactor factors: ${err.message}`
+            );
         }
     }
 
     async updateUsdcDebt(walletAddress: string) {
         const usdc = this.config.get<string>("crypto.usdc");
-        const wallet = await this.walletService.getWalletByAddress(walletAddress);
+        const wallet =
+            await this.walletService.getWalletByAddress(walletAddress);
         if (!wallet) {
             this.logger.error(`Wallet ${walletAddress} not found`);
             return;
@@ -261,9 +361,13 @@ export class BlockCheckerService {
 
             // Update the wallet in the database
             await this.walletService.updateUsdcDebt(wallet.id, formattedHF);
-            this.logger.verbose(`USDC debt updated for wallet ${walletAddress}: ${formattedHF} transaction`);
+            this.logger.verbose(
+                `USDC debt updated for wallet ${walletAddress}: ${formattedHF} transaction`
+            );
         } catch (err) {
-            this.logger.error(`Failed to update USDC debt wallet ${walletAddress}: ${err.message}`);
+            this.logger.error(
+                `Failed to update USDC debt wallet ${walletAddress}: ${err.message}`
+            );
         }
     }
 
@@ -279,7 +383,8 @@ export class BlockCheckerService {
 
     async updateUsdcDebtCron(walletAddress: string) {
         const usdc = this.config.get<string>("crypto.usdc");
-        const wallet = await this.walletService.getWalletByAddress(walletAddress);
+        const wallet =
+            await this.walletService.getWalletByAddress(walletAddress);
         if (!wallet) {
             this.logger.error(`Wallet ${walletAddress} not found`);
             return;
@@ -297,7 +402,10 @@ export class BlockCheckerService {
             // Update the wallet in the database
             await this.walletService.updateUsdcDebt(wallet.id, formattedHF);
         } catch (err) {
-            this.logger.error(`Failed to update USDC debt wallet ${walletAddress}: ${err.message}`);
+            this.logger.error(
+                `Failed to update USDC debt wallet ${walletAddress}: ${err.message}`
+            );
         }
     }
 }
+

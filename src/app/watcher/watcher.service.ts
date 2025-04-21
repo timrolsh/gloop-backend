@@ -9,6 +9,8 @@ import { TransactionService } from "../transaction/transaction.service";
 import { BlockService } from "../block/block.service";
 import { CreateBlockDto } from "../block/dto/create-block.dto";
 import { BlockCheckerService } from "../block-checker/block-checker.service";
+import { WalletService } from "../wallet/wallet.service";
+import { CreateWalletDto } from "../wallet/dto/create-wallet.dto";
 
 @Injectable()
 export class WatcherService implements OnModuleInit {
@@ -22,7 +24,8 @@ export class WatcherService implements OnModuleInit {
         private readonly transactionService: TransactionService,
         private readonly blockService: BlockService,
         private readonly blockCheckerService: BlockCheckerService,
-        private readonly config: ConfigService
+        private readonly config: ConfigService,
+        private readonly walletService: WalletService
     ) {}
 
     async onModuleInit() {
@@ -63,6 +66,14 @@ export class WatcherService implements OnModuleInit {
             } catch (err) {
                 this.logger.error(`Error syncing ${event} events:`, err);
             }
+        }
+    }
+
+    private async ensureWalletExists(address: string): Promise<void> {
+        const existing = await this.walletService.getWalletByAddress(address);
+        if (!existing) {
+            this.logger.log(`Creating new wallet for address: ${address}`);
+            await this.walletService.create(new CreateWalletDto(address));
         }
     }
 
@@ -223,6 +234,9 @@ export class WatcherService implements OnModuleInit {
         }
 
         if (eventName === ExistsEvent.LIQUIDATION) {
+            await this.ensureWalletExists(data.liquidated);
+            await this.ensureWalletExists(data.liquidator);
+
             await this.blockCheckerService.updateHealthFactorByTransaction(
                 data.liquidated
             );
@@ -279,6 +293,12 @@ export class WatcherService implements OnModuleInit {
         };
 
         try {
+            // Make sure wallet exists in DB before creating transaction w/ join to wallet
+            await this.ensureWalletExists(
+                eventName === ExistsEvent.LIQUIDATION
+                    ? data.liquidator
+                    : data.from
+            );
             await this.transactionService.create(createTransactionDto);
             await this.blockService.create(createBlockDto);
             this.logger.log("Transaction saved successfully.");
