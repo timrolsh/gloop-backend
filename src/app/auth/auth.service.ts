@@ -10,7 +10,7 @@ import {generateNonce, SiweMessage} from "siwe";
 import {GreetingResponseDto} from "./dto/greeting.dto";
 import {UserLoginDto} from "./dto/user-login.dto";
 import {Wallet} from "../wallet/entities/wallet.entity";
-import {Contract, JsonRpcProvider, toUtf8Bytes} from "ethers";
+import {Contract, JsonRpcProvider, hashMessage} from "ethers";
 
 @Injectable()
 export class AuthService {
@@ -36,46 +36,64 @@ export class AuthService {
   }
 
   async verifySignature(message: string, signature: string): Promise<string> {
-    // 1. Recreate the SIWE object
     const siweMessage = new SiweMessage(JSON.parse(message));
     const signerAddress = siweMessage.address;
 
-    // 2. Set up your JSON-RPC provider (ethers v6 style)
+    // get your URL from env
     const rpcUrl = this.configService.get<string>("CHAIN_RPC_URL");
-    if (!rpcUrl) {
-      throw new Error("CHAIN_RPC_URL is not defined");
-    }
     const provider = new JsonRpcProvider(rpcUrl);
 
-    // 3. Is this a contract account?
+    // EOA vs contract check
     const code = await provider.getCode(signerAddress);
     const isContract = code !== "0x";
 
     if (isContract) {
-      // 4a. ERC-1271 contract-wallet verification
+      // 1) Hash the SIWE message per EIP-191
+      const msgHash = hashMessage(siweMessage.prepareMessage());
+
+      // 2) Use the bytes32 overload
       const ERC1271_ABI = [
-        "function isValidSignature(bytes _msg, bytes _sig) view returns (bytes4)"
+        "function isValidSignature(bytes32 _hash, bytes memory _signature) view returns (bytes4)"
       ];
-      const ERC1271_MAGIC = "0x1626ba7e";
-      const contract = new Contract(signerAddress, ERC1271_ABI, provider);
+      const EIP1271_MAGIC = "0x1626ba7e";
+      const safe = new Contract(signerAddress, ERC1271_ABI, provider);
 
-      // Prepare exactly the same message you asked the user to sign
-      const msgBytes = toUtf8Bytes(siweMessage.prepareMessage());
-      const result = await contract.isValidSignature(msgBytes, signature);
+      let result: string;
+      try {
+        result = await safe.isValidSignature(msgHash, signature);
+      } catch (e: any) {
+        // If you still see GS025 (“Hash not approved”) or GS026 here,
+        // it means the Safe tx to approveHash never executed.
+        throwCustomHttpException(
+          "Safe signature not approved on-chain",
+          e.reason || e.message,
+          HttpStatus.FORBIDDEN
+        );
+      }
 
-      if (result !== ERC1271_MAGIC) {
-        throwCustomHttpException("Invalid signature", "Invalid signature", HttpStatus.FORBIDDEN);
+      if (result !== EIP1271_MAGIC) {
+        throwCustomHttpException(
+          "Invalid Safe signature",
+          "EIP-1271 check failed",
+          HttpStatus.FORBIDDEN
+        );
       }
     } else {
-      // 4b. Standard EOA SIWE verification
+      // Standard EOA SIWE
       try {
-        await siweMessage.verify({signature, nonce: siweMessage.nonce});
+        await siweMessage.verify({
+          signature,
+          nonce: siweMessage.nonce
+        });
       } catch {
-        throwCustomHttpException("Invalid signature", "Invalid signature", HttpStatus.FORBIDDEN);
+        throwCustomHttpException(
+          "Invalid signature",
+          "SIWE ecrecover check failed",
+          HttpStatus.FORBIDDEN
+        );
       }
     }
 
-    // 5. All checks passed
     return signerAddress;
   }
 
