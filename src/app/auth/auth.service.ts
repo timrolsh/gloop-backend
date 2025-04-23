@@ -40,7 +40,7 @@ export class AuthService {
     const signerAddress = siweMessage.address;
 
     // get your URL from env
-    const rpcUrl = this.configService.get<string>("CHAIN_RPC_URL");
+    const rpcUrl = this.configService.get<string>("MAINNET_RPC_URL");
     const provider = new JsonRpcProvider(rpcUrl);
 
     // EOA vs contract check
