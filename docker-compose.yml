@@ -1,28 +1,22 @@
 services:
-    backend:
-        build:
-            context: .
-            dockerfile: Dockerfile
-        ports:
-            - "8080:8080"
-        env_file:
-            - .env # Loads env variables from the .env file
-        platform: linux/amd64
-        image: registry.digitalocean.com/gloop/backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env # Loads env variables from the .env file
+    environment:
+      - DATABASE_SSL=false
+    platform: linux/amd64
+    image: registry.digitalocean.com/gloop/backend
 
-    postgres-gloob:
-        image: postgres:14
-        env_file:
-            - .env # Loads POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB from the .env file
-        volumes:
-            - postgres_data:/var/lib/postgresql/data
-        ports:
-            - 5432:5432
-
-volumes:
-    postgres_data:
-
-networks:
-    develop:
-        external: true
-#Sun Nov 10 15:39 PM
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - ${DATABASE_PORT}:5432
