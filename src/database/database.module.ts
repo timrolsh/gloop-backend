@@ -19,7 +19,7 @@ import {TlsOptions} from "tls";
           username: conf.get("DATABASE_USER"),
           password: conf.get("DATABASE_PASSWORD"),
           database: conf.get("DATABASE_NAME"),
-          ssl: {rejectUnauthorized: false},
+          ssl: process.env.DATABASE_SSL === 'true' ? {rejectUnauthorized: false} : false,
           entities: ["**/*.entity.js"],
           synchronize: false
         };

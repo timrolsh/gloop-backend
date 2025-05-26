@@ -14,7 +14,7 @@ const dataSourceOptions: DataSourceOptions = {
   username: process.env.DATABASE_USER,
   password: process.env.DATABASE_PASSWORD,
   database: process.env.DATABASE_NAME,
-  ssl: {rejectUnauthorized: false},
+  ssl: process.env.DATABASE_SSL === 'true' ? {rejectUnauthorized: false} : false,
   entities: [path.join(__dirname, "../**/**/**/**/entities/", "*.entity.{ts,js}")],
   migrations: [path.join(__dirname, "./migrations", "*.{ts,js}")],
   migrationsTableName: "typeorm_migrations",
