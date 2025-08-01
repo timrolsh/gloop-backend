@@ -61,27 +61,20 @@ export class UpdateLeaderboardService {
         }
 
         // Try contract calls with individual error handling
-        let points, totalBoostRaw, userUSDCDepositBalance;
+        let userData, userUSDCDepositBalance;
 
         try {
-          points = await this.contractReferral.getUserPoints(address);
+          userData = await this.contractReferral.getUserData(address);
         } catch (error) {
-          this.logger.error(`Failed to get user points for ${address}: ${error.message}`);
+          this.logger.error(`Failed to get user data for ${address}: ${error.message}`);
           continue;
         }
 
-        if (points) {
-          const lastUpdateTime = new Date(Number(points[0]) * 1000);
+        if (userData) {
+          const lastUpdateTime = new Date(Number(userData[0]) * 1000);
 
-          const storedLendingPointsBN = new BigNumber(points[1].toString());
-          const storedBorrowingPointsBN = new BigNumber(points[2].toString());
-
-          try {
-            totalBoostRaw = await this.contractReferral.calculateCurrentBoost(address);
-          } catch (error) {
-            this.logger.error(`Failed to calculate boost for ${address}: ${error.message}`);
-            continue;
-          }
+          const storedLendingPointsBN = new BigNumber(userData[3].toString()); // lendingUSDCPoints
+          const storedBorrowingPointsBN = new BigNumber(userData[4].toString()); // borrowingUSDCPoints
 
           try {
             userUSDCDepositBalance = await this.lendingContract.balanceOf(usdcContract, address);
@@ -90,15 +83,16 @@ export class UpdateLeaderboardService {
             continue;
           }
 
-          const totalBoostBN = new BigNumber(totalBoostRaw.toString());
+          // Note: Boost functionality appears to have been removed from the new contract
+          // Setting to 100% (no boost) as default
+          const totalBoostBN = new BigNumber(100);
 
           let floatings;
           try {
             floatings = await this.contractReferral.calculateFloatingPoints(
               address,
-              0,
-              userUSDCDepositBalance,
-              totalBoostRaw
+              0, // activity: 0 = deposit (as suggested in docs)
+              userUSDCDepositBalance
             );
           } catch (error) {
             this.logger.error(
@@ -119,7 +113,7 @@ export class UpdateLeaderboardService {
           const totalEarnedPointsBN = totalLendingPointsBN.plus(totalBorrowingPointsBN);
           const totalEarnedPoints = totalEarnedPointsBN;
 
-          const claimedPointsBN = new BigNumber(points[4].toString());
+          const claimedPointsBN = new BigNumber(userData[6].toString()); // claimedPoints
           const claimedPoints = claimedPointsBN;
 
           const referralBoostBN = totalBoostBN.dividedBy(100);

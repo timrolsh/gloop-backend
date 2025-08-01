@@ -76,8 +76,9 @@ export class WatcherReferralService {
   // }
 
   async getReferrerCount(walletAddress: string): Promise<number> {
-    this.initializeProviderAndContract();
-    const referrer = await this.contract.getUserReferrals(walletAddress);
-    return referrer.length ?? 0;
+    // Referral functionality appears to have been removed from the new contract
+    // Return 0 for now until referral tracking is reimplemented
+    this.logger.debug(`Referral count requested for ${walletAddress}. Returning 0 (referral functionality not available in current contract).`);
+    return 0;
   }
 }
