@@ -4,7 +4,6 @@ import { WalletController } from "./wallet.controller";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Wallet } from "./entities/wallet.entity";
 import { QueryingModule } from "src/common/querying/querying.module";
-import { BlockCheckerModule } from "../block-checker/block-checker.module";
 import { WatcherReferralModule } from "../watcher-referral/watcher-referral.module";
 
 @Module({
