@@ -1,27 +1,27 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsString } from "class-validator";
-import { ExistsEvent } from "../enum/exists-event.enum";
+import {IsEnum, IsNotEmpty, IsNumber, IsString} from "class-validator";
+import {ExistsEvent} from "../enum/exists-event.enum";
 
 export class CreateTransactionDto {
-    @IsString()
-    @IsNotEmpty()
-    walletAddress: string;
+  @IsString()
+  @IsNotEmpty()
+  walletAddress: string;
 
-    @IsString()
-    @IsNotEmpty()
-    tokenName: string;
+  @IsString()
+  @IsNotEmpty()
+  tokenName: string;
 
-    @IsString()
-    @IsNotEmpty()
-    asset: string;
+  @IsString()
+  @IsNotEmpty()
+  asset: string;
 
-    @IsNumber()
-    @IsNotEmpty()
-    amount: number;
+  @IsNumber()
+  @IsNotEmpty()
+  amount: number;
 
-    @IsEnum(ExistsEvent)
-    event: ExistsEvent;
+  @IsEnum(ExistsEvent)
+  event: ExistsEvent;
 
-    @IsString()
-    @IsNotEmpty()
-    transactionHash: string;
+  @IsString()
+  @IsNotEmpty()
+  transactionHash: string;
 }

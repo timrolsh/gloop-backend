@@ -2,9 +2,6 @@ import {Module} from "@nestjs/common";
 import {ConfigModule, ConfigService} from "@nestjs/config";
 import {TypeOrmModule, TypeOrmModuleOptions} from "@nestjs/typeorm";
 import {SeedingModule} from "./seeding/seeding.module";
-import * as path from "path";
-import * as fs from "fs";
-import {TlsOptions} from "tls";
 
 @Module({
   imports: [

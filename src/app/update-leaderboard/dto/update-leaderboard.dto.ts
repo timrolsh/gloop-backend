@@ -1,25 +1,25 @@
-import { IsDate, IsNumber, IsOptional } from "class-validator";
-import { Type } from "class-transformer";
+import {IsDate, IsNumber, IsOptional} from "class-validator";
+import {Type} from "class-transformer";
 
 export class UpdateLeaderboardDto {
-    walletId: string;
+  walletId: string;
 
-    @IsOptional()
-    @Type(() => Date)
-    @IsDate()
-    lastUpdateTime?: Date;
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  lastUpdateTime?: Date;
 
-    @IsOptional()
-    lendingUSDCPoints: string;
+  @IsOptional()
+  lendingUSDCPoints: string;
 
-    @IsOptional()
-    borrowingUSDCPoints: string;
+  @IsOptional()
+  borrowingUSDCPoints: string;
 
-    @IsOptional()
-    totalEarnedPoints: string;
+  @IsOptional()
+  totalEarnedPoints: string;
 
-    @IsOptional()
-    claimedPoints: string;
+  @IsOptional()
+  claimedPoints: string;
 
-    referralBoost: string;
+  referralBoost: string;
 }
