@@ -62,6 +62,15 @@ export class BlockCheckerService {
             );
         }
     }
+    private async ensureWalletExists(address: string): Promise<void> {
+        const existing = await this.walletService.getWalletByAddress(address);
+        if (!existing) {
+            this.logger.log(`Creating new wallet for address: ${address}`);
+            const { CreateWalletDto } = await import("../wallet/dto/create-wallet.dto");
+            await this.walletService.create(new CreateWalletDto(address));
+        }
+    }
+
     @Cron(CronExpression.EVERY_HOUR)
     async checkMissingBlocks(): Promise<void> {
         try {
@@ -168,57 +177,52 @@ export class BlockCheckerService {
     }
 
     private async processTransactionLogs(logs: ethers.Log[]): Promise<void> {
-        const allWalletAddresses = new Set(
-            (await this.walletService.getAllWallets()).map((address) =>
-                address.toLowerCase()
-            )
-        );
         const transactionPromises = logs.map(async (log) => {
             const parsedLog = this.contract.interface.parseLog(log);
             const { from, asset, amount } = parsedLog.args;
 
-            const walletAddressCh = from.toLowerCase();
-            if (allWalletAddresses.has(walletAddressCh)) {
-                const isExists = await this.transactionService.isExists(
-                    log.transactionHash
-                );
-                if (isExists) {
-                    this.logger.log(
-                        `Transaction ${log.transactionHash} already exists. Skipping.`
-                    );
-                    return;
-                }
-                const tokenName = this.getTokenName(asset);
-
-                let amountNumber = ethers.formatEther(amount);
-
-                if (tokenName === "USDC") {
-                    amountNumber = ethers.formatUnits(amount, 6);
-                } else {
-                    amountNumber = ethers.formatUnits(amount, 18);
-                }
-                // const amountNumber = ethers.formatEther(amount);
-                const transaction = await this.provider.getTransaction(
-                    log.transactionHash
-                );
-
-                const createTransactionDto: CreateTransactionDto = {
-                    walletAddress: from,
-                    tokenName,
-                    asset: asset,
-                    amount: parseFloat(amountNumber),
-                    event: this.getEnumValueFromName(parsedLog.name),
-                    transactionHash: transaction.hash,
-                };
-
-                await await this.transactionService.create(
-                    createTransactionDto
-                );
-
+            // Ensure wallet exists before processing transaction
+            await this.ensureWalletExists(from);
+            
+            const isExists = await this.transactionService.isExists(
+                log.transactionHash
+            );
+            if (isExists) {
                 this.logger.log(
-                    `Processed transaction ${transaction.hash} from block ${transaction.blockNumber}.`
+                    `Transaction ${log.transactionHash} already exists. Skipping.`
                 );
+                return;
             }
+            const tokenName = this.getTokenName(asset);
+
+            let amountNumber = ethers.formatEther(amount);
+
+            if (tokenName === "USDC") {
+                amountNumber = ethers.formatUnits(amount, 6);
+            } else {
+                amountNumber = ethers.formatUnits(amount, 18);
+            }
+            // const amountNumber = ethers.formatEther(amount);
+            const transaction = await this.provider.getTransaction(
+                log.transactionHash
+            );
+
+            const createTransactionDto: CreateTransactionDto = {
+                walletAddress: from,
+                tokenName,
+                asset: asset,
+                amount: parseFloat(amountNumber),
+                event: this.getEnumValueFromName(parsedLog.name),
+                transactionHash: transaction.hash,
+            };
+
+            await this.transactionService.create(
+                createTransactionDto
+            );
+
+            this.logger.log(
+                `Processed transaction ${transaction.hash} from block ${transaction.blockNumber}.`
+            );
         });
 
         await Promise.all(transactionPromises);
@@ -303,7 +307,7 @@ export class BlockCheckerService {
                 await this.walletService.getWalletByAddress(walletAddress);
 
             if (!wallet) {
-                this.logger.error(`Wallet ${walletAddress} not found`);
+                this.logger.error(`Wallet ${walletAddress} not found. Source: updateHealthFactorByTransaction`);
                 return;
             }
 
@@ -346,7 +350,7 @@ export class BlockCheckerService {
         const wallet =
             await this.walletService.getWalletByAddress(walletAddress);
         if (!wallet) {
-            this.logger.error(`Wallet ${walletAddress} not found`);
+            this.logger.error(`Wallet ${walletAddress} not found. Source: updateUsdcDebt`);
             return;
         }
 
@@ -386,7 +390,7 @@ export class BlockCheckerService {
         const wallet =
             await this.walletService.getWalletByAddress(walletAddress);
         if (!wallet) {
-            this.logger.error(`Wallet ${walletAddress} not found`);
+            this.logger.error(`Wallet ${walletAddress} not found. Source: updateUsdcDebtCron `);
             return;
         }
 

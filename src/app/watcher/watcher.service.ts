@@ -200,11 +200,15 @@ export class WatcherService implements OnModuleInit {
       this.logger.verbose(`USDC debt updated for wallet liquidated ${data.liquidated}`);
       this.logger.verbose(`USDC debt updated for wallet liquidator ${data.liquidator}`);
     } else {
+      // Ensure wallet exists before updating health factor
+      await this.ensureWalletExists(data.from);
       await this.blockCheckerService.updateHealthFactorByTransaction(data.from);
       this.logger.verbose(`Health factor updated for wallet ${data.from}`);
     }
 
     if (eventName === ExistsEvent.BORROW || eventName === ExistsEvent.REPAY) {
+      // Wallet should already exist from above, but ensure it exists before updating USDC debt
+      await this.ensureWalletExists(data.from);
       await this.blockCheckerService.updateUsdcDebt(data.from);
 
       this.logger.verbose(`USDC debt updated for wallet ${data.from}`);
@@ -234,10 +238,7 @@ export class WatcherService implements OnModuleInit {
         return;
       }
 
-      // Make sure wallet exists in DB before creating transaction w/ join to wallet
-      await this.ensureWalletExists(
-        eventName === ExistsEvent.LIQUIDATION ? data.liquidator : data.from
-      );
+      // Wallet already ensured to exist above
       await this.transactionService.create(createTransactionDto);
       await this.blockService.create(createBlockDto);
       this.logger.log("Transaction saved successfully.");
