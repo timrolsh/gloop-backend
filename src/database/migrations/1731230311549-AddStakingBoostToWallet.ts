@@ -1,11 +1,11 @@
 import {MigrationInterface, QueryRunner} from "typeorm";
 
-export class AddReferralBoostToWallet1731230311549 implements MigrationInterface {
-  name = "AddReferralBoostToWallet1731230311549";
+export class AddStakingBoostToWallet1731230311549 implements MigrationInterface {
+  name = "AddStakingBoostToWallet1731230311549";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "wallets" ADD "referralBoost" numeric(18,2) NOT NULL DEFAULT '0'`
+      `ALTER TABLE "wallets" ADD "stakingBoost" numeric(18,2) NOT NULL DEFAULT '0'`
     );
     await queryRunner.query(`ALTER TABLE "wallets" ALTER COLUMN "lendingUSDCPoints" SET NOT NULL`);
     await queryRunner.query(
@@ -38,6 +38,6 @@ export class AddReferralBoostToWallet1731230311549 implements MigrationInterface
     );
     await queryRunner.query(`ALTER TABLE "wallets" ALTER COLUMN "lendingUSDCPoints" DROP DEFAULT`);
     await queryRunner.query(`ALTER TABLE "wallets" ALTER COLUMN "lendingUSDCPoints" DROP NOT NULL`);
-    await queryRunner.query(`ALTER TABLE "wallets" DROP COLUMN "referralBoost"`);
+    await queryRunner.query(`ALTER TABLE "wallets" DROP COLUMN "stakingBoost"`);
   }
 }
