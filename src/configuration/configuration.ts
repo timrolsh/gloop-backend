@@ -43,6 +43,7 @@ export const configuration = () => ({
       process.env.NETWORK === "testnet" ? process.env.GM_ETH_TESTNET : process.env.GM_ETH_MAINNET,
     gmSOL:
       process.env.NETWORK === "testnet" ? process.env.GM_SOL_TESTNET : process.env.GM_SOL_MAINNET,
-    usdc: process.env.NETWORK === "testnet" ? process.env.USDC_TESTNET : process.env.USDC_MAINNET
+    usdc: process.env.NETWORK === "testnet" ? process.env.USDC_TESTNET : process.env.USDC_MAINNET,
+    stakingContractAddress: process.env.STAKING_CONTRACT_ADDRESS
   }
 });

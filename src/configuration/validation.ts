@@ -30,5 +30,6 @@ export const validationSchema = Joi.object({
   GM_BTC_MAINNET: Joi.string().required(),
   GM_ETH_MAINNET: Joi.string().required(),
   GM_SOL_MAINNET: Joi.string().required(),
-  USDC_MAINNET: Joi.string().required()
+  USDC_MAINNET: Joi.string().required(),
+  STAKING_CONTRACT_ADDRESS: Joi.string().required()
 });
