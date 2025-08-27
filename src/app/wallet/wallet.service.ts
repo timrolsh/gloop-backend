@@ -13,7 +13,6 @@ import {DashboardResponseDto} from "./dto/dashboard-response.dto";
 import {UpdateLeaderboardDto} from "../update-leaderboard/dto/update-leaderboard.dto";
 import {LeaderboardListResponseDto} from "./dto/leaderboard-list-response.dto";
 import {LeaderboardListRequestDto} from "./dto/leaderboard-list-request.dto";
-import {WatcherReferralService} from "../watcher-referral/watcher-referral.service";
 
 @Injectable()
 export class WalletService {
@@ -24,7 +23,6 @@ export class WalletService {
     private readonly walletRepository: Repository<Wallet>,
 
     private readonly paginationService: PaginationService,
-    private readonly watcherReferralService: WatcherReferralService
   ) {}
 
   async create(createWalletDto: CreateWalletDto): Promise<Wallet> {
@@ -38,8 +36,6 @@ export class WalletService {
     if (!wallet) {
       throwCustomHttpException("User not found!", "User not found!");
     }
-
-    const usersReferrer = await this.watcherReferralService.getReferrerCount(wallet.address);
 
     const rankQuery = this.walletRepository
       .createQueryBuilder("wallet")
@@ -62,7 +58,6 @@ export class WalletService {
     const rank = rankResult ? Number(rankResult.rank) + 1 : 1;
 
     const res = plainToInstance(DashboardResponseDto, wallet, {excludeExtraneousValues: true});
-    res.usersReferred = usersReferrer ?? 0;
     res.rank = res.totalEarnedPoints > 0 ? rank : null;
     return new ResultDto(res);
   }

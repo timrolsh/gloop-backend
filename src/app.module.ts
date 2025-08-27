@@ -11,7 +11,6 @@ import {AuthGuard} from "./app/auth/guard/auth.guard";
 import {VALIDATION_PIPE_OPTIONS} from "./common/querying/util/common.constants";
 import {LiquidationModule} from "./app/liquidation/liquidation.module";
 import {BlockCheckerModule} from "./app/block-checker/block-checker.module";
-import {WatcherReferralModule} from "./app/watcher-referral/watcher-referral.module";
 import {UpdateLeaderboardModule} from "./app/update-leaderboard/update-leaderboard.module";
 import {AppController} from "./app.controller";
 @Module({
@@ -24,7 +23,6 @@ import {AppController} from "./app.controller";
     WatcherModule,
     LiquidationModule,
     BlockCheckerModule,
-    WatcherReferralModule,
     UpdateLeaderboardModule
   ],
   providers: [

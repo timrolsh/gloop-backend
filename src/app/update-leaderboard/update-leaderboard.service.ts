@@ -1,6 +1,5 @@
-import {Injectable, Logger} from "@nestjs/common";
+import {Injectable, Logger, OnModuleInit} from "@nestjs/common";
 import {ethers} from "ethers";
-import {ABI_REFERRAL} from "../watcher-referral/data/abi-referral";
 import {ConfigService} from "@nestjs/config";
 import {WalletService} from "../wallet/wallet.service";
 import {Cron, CronExpression} from "@nestjs/schedule";
@@ -8,18 +7,18 @@ import {UpdateLeaderboardDto} from "./dto/update-leaderboard.dto";
 import BigNumber from "bignumber.js";
 import {ABI} from "../watcher/data/abi";
 import {ABI_STAKING} from "../watcher/data/abi-staking";
+import {ABI as GM_POINTS_ABI} from "./data/abi";
 
 @Injectable()
-export class UpdateLeaderboardService {
+export class UpdateLeaderboardService implements OnModuleInit {
   private logger = new Logger(UpdateLeaderboardService.name);
   private provider!: ethers.JsonRpcProvider;
-  private contractReferral!: ethers.Contract;
   private lendingContract!: ethers.Contract;
   private stakingContract!: ethers.Contract;
-
-  private readonly abiReferral = ABI_REFERRAL;
+  private gmPointsContract!: ethers.Contract;
   private readonly abiLending = ABI;
   private readonly abiStaking = ABI_STAKING;
+  private readonly abiGmPoints = GM_POINTS_ABI;
 
   constructor(
     private readonly config: ConfigService,
@@ -32,15 +31,10 @@ export class UpdateLeaderboardService {
     try {
       const rpcUrl = this.config.get<string>("crypto.rpcUrl");
       const contractAddress = this.config.get<string>("crypto.contractAddress");
-      const contractAddressReferral = this.config.get<string>("crypto.gmPointContactAddress");
+      const gmPointsContractAddress = this.config.get<string>("crypto.gmPointContactAddress");
       const stakingContractAddress = this.config.get<string>("crypto.stakingContractAddress");
 
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
-      this.contractReferral = new ethers.Contract(
-        contractAddressReferral,
-        this.abiReferral,
-        this.provider
-      );
 
       this.lendingContract = new ethers.Contract(contractAddress, this.abiLending, this.provider);
 
@@ -49,8 +43,24 @@ export class UpdateLeaderboardService {
         this.abiStaking,
         this.provider
       );
+
+      this.gmPointsContract = new ethers.Contract(
+        gmPointsContractAddress,
+        this.abiGmPoints,
+        this.provider
+      );
     } catch (error) {
       this.logger.error("Error initializing provider and contract:", error);
+    }
+  }
+
+  async onModuleInit() {
+    this.logger.log("UpdateLeaderboardService initialized - running initial leaderboard update...");
+    try {
+      await this.updateLeaderboard();
+      this.logger.log("Initial leaderboard update completed successfully");
+    } catch (error) {
+      this.logger.error("Initial leaderboard update failed:", error.message);
     }
   }
 
@@ -114,7 +124,7 @@ export class UpdateLeaderboardService {
         let userData, userUSDCDepositBalance;
 
         try {
-          userData = await this.contractReferral.getUserData(address);
+          userData = await this.gmPointsContract.getUserData(address);
         } catch (error) {
           this.logger.error(`Failed to get user data for ${address}: ${error.message}`);
           continue;
@@ -138,15 +148,13 @@ export class UpdateLeaderboardService {
 
           let floatings;
           try {
-            floatings = await this.contractReferral.calculateFloatingPoints(
+            floatings = await this.gmPointsContract.calculateFloatingPoints(
               address,
               0, // activity: 0 = deposit (as suggested in docs)
               userUSDCDepositBalance
             );
           } catch (error) {
-            this.logger.error(
-              `Failed to calculate floating points for ${address}: ${error.message}`
-            );
+            this.logger.error(`Failed to calculate floating points for ${address}: ${error.message}`);
             continue;
           }
 

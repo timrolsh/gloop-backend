@@ -9,16 +9,13 @@ import {CreateTransactionDto} from "../transaction/dto/create-transaction.dto";
 import {CreateBlockDto} from "../block/dto/create-block.dto";
 import {ABI} from "../watcher/data/abi";
 import {ExistsEvent} from "../transaction/enum/exists-event.enum";
-import {ABI_REFERRAL} from "../watcher-referral/data/abi-referral";
 
 @Injectable()
 export class BlockCheckerService {
   private readonly logger = new Logger(BlockCheckerService.name);
   private provider!: ethers.JsonRpcProvider;
   private contract!: ethers.Contract;
-  private contractReferral!: ethers.Contract;
   private readonly abi = ABI;
-  private readonly abiReferral = ABI_REFERRAL;
 
   constructor(
     private readonly config: ConfigService,
@@ -33,7 +30,6 @@ export class BlockCheckerService {
     try {
       const rpcUrl = this.config.get<string>("crypto.rpcUrl");
       const contractAddress = this.config.get<string>("crypto.contractAddress");
-      const contractAddressReferral = this.config.get<string>("crypto.gmPointContactAddress");
 
       if (!rpcUrl || !contractAddress) {
         this.logger.error("Missing contract or RPC URL configuration.");
@@ -42,11 +38,6 @@ export class BlockCheckerService {
 
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
       this.contract = new ethers.Contract(contractAddress, this.abi, this.provider);
-      this.contractReferral = new ethers.Contract(
-        contractAddressReferral,
-        this.abiReferral,
-        this.provider
-      );
     } catch (error) {
       this.logger.error("Error initializing provider and contract:", error);
     }
