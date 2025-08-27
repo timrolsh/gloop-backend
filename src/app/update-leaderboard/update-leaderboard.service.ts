@@ -7,18 +7,19 @@ import {Cron, CronExpression} from "@nestjs/schedule";
 import {UpdateLeaderboardDto} from "./dto/update-leaderboard.dto";
 import BigNumber from "bignumber.js";
 import {ABI} from "../watcher/data/abi";
+import {ABI_STAKING} from "../watcher/data/abi-staking";
 
 @Injectable()
 export class UpdateLeaderboardService {
   private logger = new Logger(UpdateLeaderboardService.name);
   private provider!: ethers.JsonRpcProvider;
   private contractReferral!: ethers.Contract;
-
   private lendingContract!: ethers.Contract;
+  private stakingContract!: ethers.Contract;
 
   private readonly abiReferral = ABI_REFERRAL;
-
   private readonly abiLending = ABI;
+  private readonly abiStaking = ABI_STAKING;
 
   constructor(
     private readonly config: ConfigService,
@@ -32,6 +33,7 @@ export class UpdateLeaderboardService {
       const rpcUrl = this.config.get<string>("crypto.rpcUrl");
       const contractAddress = this.config.get<string>("crypto.contractAddress");
       const contractAddressReferral = this.config.get<string>("crypto.gmPointContactAddress");
+      const stakingContractAddress = this.config.get<string>("crypto.stakingContractAddress");
 
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
       this.contractReferral = new ethers.Contract(
@@ -41,8 +43,56 @@ export class UpdateLeaderboardService {
       );
 
       this.lendingContract = new ethers.Contract(contractAddress, this.abiLending, this.provider);
+
+      this.stakingContract = new ethers.Contract(
+        stakingContractAddress,
+        this.abiStaking,
+        this.provider
+      );
     } catch (error) {
       this.logger.error("Error initializing provider and contract:", error);
+    }
+  }
+
+  /**
+   * Calculate staking boost percentage based on staked amount and lock duration
+   * Based on the documentation:
+   * - 14-day stake: 25% boost
+   * - 28-day stake: 50% boost
+   * - 56-day stake: 100% boost
+   * - No stake: 0% boost
+   */
+  private async calculateStakingBoost(address: string): Promise<number> {
+    try {
+      // Get user staked amount
+      const stakedAmount = await this.stakingContract.getUserStakedAmount(address);
+      const stakedAmountBN = new BigNumber(stakedAmount.toString());
+
+      // If no tokens staked, return 0% boost
+      if (stakedAmountBN.isZero()) {
+        return 0;
+      }
+
+      // Get staker info to determine lock duration
+      const stakerInfo = await this.stakingContract.stakers(address);
+      const lockDuration = new BigNumber(stakerInfo.lockDuration.toString());
+
+      // Convert lock duration from seconds to days
+      const lockDurationDays = lockDuration.dividedBy(24 * 60 * 60);
+
+      // Determine boost based on lock duration
+      if (lockDurationDays.gte(56)) {
+        return 100; // 56+ days = 100% boost
+      } else if (lockDurationDays.gte(28)) {
+        return 50; // 28+ days = 50% boost
+      } else if (lockDurationDays.gte(14)) {
+        return 25; // 14+ days = 25% boost
+      } else {
+        return 0; // Less than 14 days = 0% boost
+      }
+    } catch (error) {
+      this.logger.error(`Failed to calculate staking boost for ${address}: ${error.message}`);
+      return 0; // Default to 0% if any error occurs
     }
   }
 
@@ -83,9 +133,8 @@ export class UpdateLeaderboardService {
             continue;
           }
 
-          // Note: Boost functionality appears to have been removed from the new contract
-          // Setting to 100% (no boost) as default
-          const totalBoostBN = new BigNumber(100);
+          // Calculate staking boost based on user's staked amount and lock duration
+          const stakingBoostPercentage = await this.calculateStakingBoost(address);
 
           let floatings;
           try {
@@ -116,8 +165,7 @@ export class UpdateLeaderboardService {
           const claimedPointsBN = new BigNumber(userData[6].toString()); // claimedPoints
           const claimedPoints = claimedPointsBN;
 
-          const referralBoostBN = totalBoostBN.dividedBy(100);
-          const referralBoost = referralBoostBN.toString(10);
+          const stakingBoost = stakingBoostPercentage.toString(10);
 
           const updateLeaderboardDto: UpdateLeaderboardDto = {
             walletId,
@@ -126,7 +174,7 @@ export class UpdateLeaderboardService {
             borrowingUSDCPoints: totalBorrowingUSDCPoints.toString(10),
             totalEarnedPoints: totalEarnedPoints.toString(10),
             claimedPoints: claimedPoints.toString(10),
-            referralBoost
+            stakingBoost
           };
 
           await this.walletService.updateLeaderboard(updateLeaderboardDto);

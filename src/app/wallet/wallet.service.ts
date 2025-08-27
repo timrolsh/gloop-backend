@@ -76,7 +76,7 @@ export class WalletService {
         borrowingUSDCPoints,
         totalEarnedPoints,
         claimedPoints,
-        referralBoost
+        stakingBoost
       } = model;
 
       await this.walletRepository.update(
@@ -87,7 +87,7 @@ export class WalletService {
           borrowingUSDCPoints: parseFloat(borrowingUSDCPoints),
           totalEarnedPoints: parseFloat(totalEarnedPoints),
           claimedPoints: parseFloat(claimedPoints),
-          referralBoost: parseFloat(referralBoost) - 100
+          stakingBoost: parseFloat(stakingBoost)
         }
       );
     } catch (error) {

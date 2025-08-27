@@ -21,5 +21,5 @@ export class UpdateLeaderboardDto {
   @IsOptional()
   claimedPoints: string;
 
-  referralBoost: string;
+  stakingBoost: string;
 }

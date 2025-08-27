@@ -26,7 +26,7 @@ export class Wallet extends BaseCustomEntity {
   claimedPoints: number;
 
   @Column({type: "numeric", precision: 18, scale: 2, default: 0.0})
-  referralBoost: number;
+  stakingBoost: number;
 
   @Column({type: "decimal", precision: 18, scale: 0, default: 0})
   healthFactor: number;

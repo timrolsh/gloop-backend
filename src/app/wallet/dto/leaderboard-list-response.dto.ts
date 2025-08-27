@@ -69,10 +69,10 @@ export class LeaderboardListResponseDto {
   claimedPoints?: number;
 
   @ApiProperty({
-    description: "referral Boost",
-    example: 9,
+    description: "Staking Boost Percentage",
+    example: 25,
     required: false
   })
   @Expose()
-  referralBoost: number;
+  stakingBoost: number;
 }
