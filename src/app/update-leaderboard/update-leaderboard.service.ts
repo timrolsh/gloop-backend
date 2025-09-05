@@ -67,10 +67,11 @@ export class UpdateLeaderboardService implements OnModuleInit {
   /**
    * Calculate staking boost percentage based on staked amount and lock duration
    * Based on the documentation:
-   * - 14-day stake: 25% boost
-   * - 28-day stake: 50% boost
-   * - 56-day stake: 100% boost
    * - No stake: 0% boost
+   * - Staked but no lock (0 days): 10% boost
+   * - 14-day lock: 25% boost
+   * - 28-day lock: 50% boost
+   * - 56-day lock: 100% boost
    */
   private async calculateStakingBoost(address: string): Promise<number> {
     try {
@@ -83,7 +84,7 @@ export class UpdateLeaderboardService implements OnModuleInit {
         return 0;
       }
 
-      // Get staker info to determine lock duration
+      // User has tokens staked, get staker info to determine lock duration
       const stakerInfo = await this.stakingContract.stakers(address);
       const lockDuration = new BigNumber(stakerInfo.lockDuration.toString());
 
@@ -98,7 +99,7 @@ export class UpdateLeaderboardService implements OnModuleInit {
       } else if (lockDurationDays.gte(14)) {
         return 25; // 14+ days = 25% boost
       } else {
-        return 0; // Less than 14 days = 0% boost
+        return 10; // Staked but no lock (0 days) = 10% boost
       }
     } catch (error) {
       this.logger.error(`Failed to calculate staking boost for ${address}: ${error.message}`);
