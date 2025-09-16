@@ -5,7 +5,6 @@ import {ConfigService} from "@nestjs/config";
 import {StakingEventService, CreateStakingEventDto} from "../staking-event/staking-event.service";
 import {StakingEventType} from "../staking-event/entities/staking-event.entity";
 import {WalletService} from "../wallet/wallet.service";
-import {CreateWalletDto} from "../wallet/dto/create-wallet.dto";
 
 @Injectable()
 export class StakingWatcherService implements OnModuleInit {
@@ -181,10 +180,12 @@ export class StakingWatcherService implements OnModuleInit {
   }
 
   private async ensureWalletExists(address: string): Promise<void> {
-    const existing = await this.walletService.getWalletByAddress(address);
-    if (!existing) {
-      this.logger.log(`Creating new wallet for staking address: ${address}`);
-      await this.walletService.create(new CreateWalletDto(address));
+    try {
+      await this.walletService.findOrCreateByAddress(address);
+      // this.logger.verbose(`Wallet ensured for staking address: ${address}`);
+    } catch (error) {
+      this.logger.error(`Failed to ensure wallet exists for staking address ${address}:`, error.message);
+      throw error;
     }
   }
 

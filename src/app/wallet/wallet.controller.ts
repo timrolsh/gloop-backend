@@ -1,5 +1,5 @@
 import {Public} from "./../../common/Auth/public-action.decorator";
-import {Controller, Get, Query, Param} from "@nestjs/common";
+import {Controller, Get, Query, Post} from "@nestjs/common";
 import {WalletService} from "./wallet.service";
 import {ApiTags, ApiBearerAuth} from "@nestjs/swagger";
 import {ResultDto} from "src/common/dto/result.dto";

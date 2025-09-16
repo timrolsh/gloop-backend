@@ -9,7 +9,6 @@ import {BlockService} from "../block/block.service";
 import {CreateBlockDto} from "../block/dto/create-block.dto";
 import {BlockCheckerService} from "../block-checker/block-checker.service";
 import {WalletService} from "../wallet/wallet.service";
-import {CreateWalletDto} from "../wallet/dto/create-wallet.dto";
 
 @Injectable()
 export class WatcherService implements OnModuleInit {
@@ -67,10 +66,12 @@ export class WatcherService implements OnModuleInit {
   }
 
   private async ensureWalletExists(address: string): Promise<void> {
-    const existing = await this.walletService.getWalletByAddress(address);
-    if (!existing) {
-      this.logger.log(`Creating new wallet for address: ${address}`);
-      await this.walletService.create(new CreateWalletDto(address));
+    try {
+      await this.walletService.findOrCreateByAddress(address);
+      // this.logger.verbose(`Wallet ensured for address: ${address}`);
+    } catch (error) {
+      this.logger.error(`Failed to ensure wallet exists for address ${address}:`, error.message);
+      throw error;
     }
   }
 

@@ -4,7 +4,6 @@ import {HttpStatus, Injectable} from "@nestjs/common";
 import {JwtService} from "@nestjs/jwt";
 import {WalletService} from "../wallet/wallet.service";
 import {throwCustomHttpException} from "src/common/utils/exception.util";
-import {CreateWalletDto} from "../wallet/dto/create-wallet.dto";
 import {AuthResponseDto} from "./dto/auth-response.dto";
 import {generateNonce, SiweMessage} from "siwe";
 import {GreetingResponseDto} from "./dto/greeting.dto";
@@ -103,13 +102,7 @@ export class AuthService {
   }
 
   async validateUser(walletAddress: string): Promise<Wallet> {
-    let wallet = await this.walletService.findByAddress(walletAddress);
-
-    if (!wallet) {
-      wallet = await this.walletService.create(new CreateWalletDto(walletAddress));
-    }
-
-    return wallet;
+    return await this.walletService.findOrCreateByAddress(walletAddress);
   }
 
   async tokenForPayload(wallet: Wallet): Promise<ResultDto<AuthResponseDto>> {
