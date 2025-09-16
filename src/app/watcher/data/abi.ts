@@ -1,3 +1,6 @@
+/**
+The abi for the LendingPool contract.
+*/
 export const ABI = [
   {
     inputs: [],

@@ -1,3 +1,6 @@
+/*
+The abi for the GloopStaking contract.
+*/
 export const ABI_STAKING = [
   {
     inputs: [
