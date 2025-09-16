@@ -112,6 +112,7 @@ export class UpdateLeaderboardService implements OnModuleInit {
     const walletMap = await this.walletService.getWalletAddressToIdMap();
     const usdcContract = this.config.get("crypto.usdc");
     this.logger.log(`Updating leaderboard for ${Object.entries(walletMap).length} addresses`);
+    
     for (const [address, walletId] of Object.entries(walletMap)) {
       try {
         // Check if wallet exists before trying to query contract data
@@ -144,9 +145,6 @@ export class UpdateLeaderboardService implements OnModuleInit {
             continue;
           }
 
-          // Calculate staking boost based on user's staked amount and lock duration
-          const stakingBoostPercentage = await this.calculateStakingBoost(address);
-
           let floatings;
           try {
             floatings = await this.gmPointsContract.calculateFloatingPoints(
@@ -165,25 +163,30 @@ export class UpdateLeaderboardService implements OnModuleInit {
           const totalLendingPointsBN = storedLendingPointsBN.plus(floatingLendingPointsBN);
           const totalBorrowingPointsBN = storedBorrowingPointsBN.plus(floatingBorrowingPointsBN);
 
-          const totalLendingUSDCPoints = totalLendingPointsBN;
-          const totalBorrowingUSDCPoints = totalBorrowingPointsBN;
+          // Calculate base points (without any boosts) - this comes from the contract
+          const basePointsBN = totalLendingPointsBN.plus(totalBorrowingPointsBN);
+          const basePoints = parseFloat(basePointsBN.toString(10));
 
-          const totalEarnedPointsBN = totalLendingPointsBN.plus(totalBorrowingPointsBN);
-          const totalEarnedPoints = totalEarnedPointsBN;
+          // Calculate total points including boosted points from staking events
+          const totalPointsWithBoosts = await this.walletService.calculateTotalPointsWithBoosts(
+            walletId,
+            basePoints
+          );
+
+          // Get current staking boost for display purposes
+          const currentStakingBoostPercentage = await this.calculateStakingBoost(address);
 
           const claimedPointsBN = new BigNumber(userData[6].toString()); // claimedPoints
           const claimedPoints = claimedPointsBN;
 
-          const stakingBoost = stakingBoostPercentage.toString(10);
-
           const updateLeaderboardDto: UpdateLeaderboardDto = {
             walletId,
             lastUpdateTime,
-            lendingUSDCPoints: totalLendingUSDCPoints.toString(10),
-            borrowingUSDCPoints: totalBorrowingUSDCPoints.toString(10),
-            totalEarnedPoints: totalEarnedPoints.toString(10),
+            lendingUSDCPoints: totalLendingPointsBN.toString(10),
+            borrowingUSDCPoints: totalBorrowingPointsBN.toString(10),
+            totalEarnedPoints: totalPointsWithBoosts.toString(10), // This now includes boosted points from staking events
             claimedPoints: claimedPoints.toString(10),
-            stakingBoost
+            stakingBoost: currentStakingBoostPercentage.toString(10)
           };
 
           await this.walletService.updateLeaderboard(updateLeaderboardDto);
@@ -191,6 +194,87 @@ export class UpdateLeaderboardService implements OnModuleInit {
       } catch (error) {
         this.logger.error(`Error updating leaderboard for address ${address}: ${error.message}`);
       }
+    }
+  }
+
+  /**
+   * Handles staking status changes and takes snapshots when necessary
+   */
+  private async handleStakingStatusChange(
+    wallet: any,
+    currentStakingBoost: number,
+    isCurrentlyStaking: boolean,
+    currentBasePoints: number,
+    walletId: string
+  ): Promise<void> {
+    const hasStakingStatusChanged = 
+      wallet.isCurrentlyStaking !== isCurrentlyStaking ||
+      wallet.currentStakingBoostMultiplier !== currentStakingBoost;
+
+    if (hasStakingStatusChanged) {
+      this.logger.log(`Staking status change detected for wallet ${walletId}: ` +
+        `was staking: ${wallet.isCurrentlyStaking}, now staking: ${isCurrentlyStaking}, ` +
+        `was boost: ${wallet.currentStakingBoostMultiplier}%, now boost: ${currentStakingBoost}%`);
+      
+      await this.walletService.takeStakingSnapshot(
+        walletId,
+        currentBasePoints,
+        currentStakingBoost,
+        isCurrentlyStaking
+      );
+    }
+  }
+
+
+  /**
+   * Force a snapshot for a specific address (useful for testing or debugging)
+   */
+  async forceSnapshotForAddress(address: string): Promise<void> {
+    try {
+      this.logger.log(`Forcing snapshot for address: ${address}`);
+      
+      const wallet = await this.walletService.getWalletByAddress(address);
+      if (!wallet) {
+        this.logger.warn(`Wallet not found for debug snapshot: ${address}`);
+        return;
+      }
+
+      // Get current contract state
+      const currentStakingBoost = await this.calculateStakingBoost(address);
+      const isCurrentlyStaking = currentStakingBoost > 0;
+      
+      // Calculate current base points (same logic as updateLeaderboard)
+      const userData = await this.gmPointsContract.getUserData(address);
+      const usdcContract = this.config.get("crypto.usdc");
+      const userUSDCDepositBalance = await this.lendingContract.balanceOf(usdcContract, address);
+      
+      const storedLendingPointsBN = new BigNumber(userData[3].toString());
+      const storedBorrowingPointsBN = new BigNumber(userData[4].toString());
+      
+      const floatings = await this.gmPointsContract.calculateFloatingPoints(
+        address,
+        0,
+        userUSDCDepositBalance
+      );
+      
+      const floatingLendingPointsBN = new BigNumber(floatings[0].toString());
+      const floatingBorrowingPointsBN = new BigNumber(floatings[1].toString());
+      
+      const totalLendingPointsBN = storedLendingPointsBN.plus(floatingLendingPointsBN);
+      const totalBorrowingPointsBN = storedBorrowingPointsBN.plus(floatingBorrowingPointsBN);
+      const basePoints = parseFloat(totalLendingPointsBN.plus(totalBorrowingPointsBN).toString(10));
+
+      // Force a snapshot for debugging
+      await this.walletService.takeStakingSnapshot(
+        wallet.id,
+        basePoints,
+        currentStakingBoost,
+        isCurrentlyStaking
+      );
+
+      this.logger.log(`Debug snapshot completed for ${address}: boost=${currentStakingBoost}%, staking=${isCurrentlyStaking}, basePoints=${basePoints}`);
+    } catch (error) {
+      this.logger.error(`Error forcing debug snapshot for ${address}: ${error.message}`);
     }
   }
 }

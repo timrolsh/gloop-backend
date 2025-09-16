@@ -1,4 +1,4 @@
-import {Injectable, Logger, NotFoundException} from "@nestjs/common";
+import {Injectable, Logger, NotFoundException, Inject, forwardRef} from "@nestjs/common";
 import {CreateWalletDto} from "./dto/create-wallet.dto";
 import {InjectRepository} from "@nestjs/typeorm";
 import {Brackets, Not, Repository} from "typeorm";
@@ -71,20 +71,41 @@ export class WalletService {
         borrowingUSDCPoints,
         totalEarnedPoints,
         claimedPoints,
-        stakingBoost
+        stakingBoost,
+        accumulatedBoostedPoints,
+        lastStakingChangeTime,
+        basePointsAtLastSnapshot,
+        isCurrentlyStaking,
+        currentStakingBoostMultiplier
       } = model;
 
-      await this.walletRepository.update(
-        {id: walletId},
-        {
-          lastUpdateTime,
-          lendingUSDCPoints: parseFloat(lendingUSDCPoints),
-          borrowingUSDCPoints: parseFloat(borrowingUSDCPoints),
-          totalEarnedPoints: parseFloat(totalEarnedPoints),
-          claimedPoints: parseFloat(claimedPoints),
-          stakingBoost: parseFloat(stakingBoost)
-        }
-      );
+      const updateData: any = {
+        lastUpdateTime,
+        lendingUSDCPoints: parseFloat(lendingUSDCPoints),
+        borrowingUSDCPoints: parseFloat(borrowingUSDCPoints),
+        totalEarnedPoints: parseFloat(totalEarnedPoints),
+        claimedPoints: parseFloat(claimedPoints),
+        stakingBoost: parseFloat(stakingBoost)
+      };
+
+      // Only update new fields if they are provided
+      if (accumulatedBoostedPoints !== undefined) {
+        updateData.accumulatedBoostedPoints = parseFloat(accumulatedBoostedPoints);
+      }
+      if (lastStakingChangeTime !== undefined) {
+        updateData.lastStakingChangeTime = lastStakingChangeTime;
+      }
+      if (basePointsAtLastSnapshot !== undefined) {
+        updateData.basePointsAtLastSnapshot = parseFloat(basePointsAtLastSnapshot);
+      }
+      if (isCurrentlyStaking !== undefined) {
+        updateData.isCurrentlyStaking = isCurrentlyStaking;
+      }
+      if (currentStakingBoostMultiplier !== undefined) {
+        updateData.currentStakingBoostMultiplier = parseFloat(currentStakingBoostMultiplier);
+      }
+
+      await this.walletRepository.update({id: walletId}, updateData);
     } catch (error) {
       console.log(error);
     }
@@ -239,5 +260,52 @@ export class WalletService {
 
   async updateUsdcDebt(walletId: string, usdcDebt: string): Promise<void> {
     await this.walletRepository.update(walletId, {usdcDebt});
+  }
+
+  /**
+   * Takes a snapshot of current points before staking status changes
+   * This preserves boosted points earned during previous staking periods
+   */
+  async takeStakingSnapshot(walletId: string, currentTotalPoints: number, newStakingBoost: number, isStaking: boolean): Promise<void> {
+    const wallet = await this.walletRepository.findOne({where: {id: walletId}});
+    if (!wallet) {
+      this.logger.warn(`Wallet with id: ${walletId} not found for staking snapshot`);
+      return;
+    }
+
+    const now = new Date();
+    let accumulatedBoosted = wallet.accumulatedBoostedPoints || 0;
+
+    // If user was previously staking, calculate and add the boosted points earned during that period
+    if (wallet.isCurrentlyStaking && wallet.lastStakingChangeTime && wallet.currentStakingBoostMultiplier > 0) {
+      const pointsEarnedDuringStaking = currentTotalPoints - (wallet.basePointsAtLastSnapshot || 0);
+      const boostMultiplier = wallet.currentStakingBoostMultiplier / 100; // Convert percentage to decimal
+      const boostedPointsEarned = pointsEarnedDuringStaking * boostMultiplier;
+      
+      accumulatedBoosted += boostedPointsEarned;
+      
+      this.logger.log(`Snapshot for wallet ${walletId}: Points earned during staking: ${pointsEarnedDuringStaking}, Boost: ${wallet.currentStakingBoostMultiplier}%, Boosted points: ${boostedPointsEarned}`);
+    }
+
+    // Update wallet with new snapshot data
+    await this.walletRepository.update(walletId, {
+      accumulatedBoostedPoints: accumulatedBoosted,
+      lastStakingChangeTime: now,
+      basePointsAtLastSnapshot: currentTotalPoints,
+      isCurrentlyStaking: isStaking,
+      currentStakingBoostMultiplier: newStakingBoost
+    });
+
+    this.logger.log(`Staking snapshot taken for wallet ${walletId}: Accumulated boosted points: ${accumulatedBoosted}, New staking status: ${isStaking}, New boost: ${newStakingBoost}%`);
+  }
+
+  /**
+   * Calculates the total points including both base points and boosted points from staking
+   * For now, this returns just base points. The staking events system will be integrated later.
+   */
+  async calculateTotalPointsWithBoosts(walletId: string, currentBasePoints: number): Promise<number> {
+    // For now, just return base points to avoid circular dependency issues
+    // The staking events system will be properly integrated when StakingEventService is available
+    return currentBasePoints;
   }
 }

@@ -22,4 +22,21 @@ export class UpdateLeaderboardDto {
   claimedPoints: string;
 
   stakingBoost: string;
+
+  @IsOptional()
+  accumulatedBoostedPoints?: string;
+
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  lastStakingChangeTime?: Date;
+
+  @IsOptional()
+  basePointsAtLastSnapshot?: string;
+
+  @IsOptional()
+  isCurrentlyStaking?: boolean;
+
+  @IsOptional()
+  currentStakingBoostMultiplier?: string;
 }

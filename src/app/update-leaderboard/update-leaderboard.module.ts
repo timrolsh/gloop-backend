@@ -7,6 +7,7 @@ import {ScheduleModule} from "@nestjs/schedule";
 @Module({
   imports: [ScheduleModule.forRoot(), WalletModule],
   controllers: [UpdateLeaderboardController],
-  providers: [UpdateLeaderboardService]
+  providers: [UpdateLeaderboardService],
+  exports: [UpdateLeaderboardService]
 })
 export class UpdateLeaderboardModule {}

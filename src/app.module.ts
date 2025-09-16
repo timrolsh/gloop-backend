@@ -12,6 +12,8 @@ import {VALIDATION_PIPE_OPTIONS} from "./common/querying/util/common.constants";
 import {LiquidationModule} from "./app/liquidation/liquidation.module";
 import {BlockCheckerModule} from "./app/block-checker/block-checker.module";
 import {UpdateLeaderboardModule} from "./app/update-leaderboard/update-leaderboard.module";
+import {StakingEventModule} from "./app/staking-event/staking-event.module";
+import {StakingWatcherModule} from "./app/staking-watcher/staking-watcher.module";
 import {AppController} from "./app.controller";
 @Module({
   imports: [
@@ -23,7 +25,9 @@ import {AppController} from "./app.controller";
     WatcherModule,
     LiquidationModule,
     BlockCheckerModule,
-    UpdateLeaderboardModule
+    UpdateLeaderboardModule,
+    StakingEventModule,
+    StakingWatcherModule
   ],
   providers: [
     JwtService,

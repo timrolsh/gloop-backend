@@ -33,4 +33,20 @@ export class Wallet extends BaseCustomEntity {
 
   @Column({type: "varchar", length: 20, default: "0.0"})
   usdcDebt: string;
+
+  // Snapshot fields for tracking boosted points over time
+  @Column({type: "numeric", default: 0.0})
+  accumulatedBoostedPoints: number;
+
+  @Column({type: "timestamp", nullable: true})
+  lastStakingChangeTime: Date;
+
+  @Column({type: "numeric", default: 0.0})
+  basePointsAtLastSnapshot: number;
+
+  @Column({type: "boolean", default: false})
+  isCurrentlyStaking: boolean;
+
+  @Column({type: "numeric", default: 0.0})
+  currentStakingBoostMultiplier: number;
 }
