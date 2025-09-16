@@ -29,7 +29,7 @@ export class TransactionService {
   ) {}
 
   async create(createTransactionDto: CreateTransactionDto): Promise<Transaction> {
-    const {walletAddress, amount, event, transactionHash, tokenName, asset} = createTransactionDto;
+    const {walletAddress, amount, event, transactionHash, tokenName, asset, blockTimestamp} = createTransactionDto;
 
     const wallet = await this.walletService.findByAddress(walletAddress);
 
@@ -53,7 +53,8 @@ export class TransactionService {
       asset,
       amount,
       event,
-      transactionHash
+      transactionHash,
+      blockTimestamp
     });
 
     return await this.transactionRepository.save(transaction);

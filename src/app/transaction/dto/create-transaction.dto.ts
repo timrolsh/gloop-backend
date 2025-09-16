@@ -1,4 +1,5 @@
-import {IsEnum, IsNotEmpty, IsNumber, IsString} from "class-validator";
+import {IsEnum, IsNotEmpty, IsNumber, IsString, IsOptional, IsDate} from "class-validator";
+import {Type} from "class-transformer";
 import {ExistsEvent} from "../enum/exists-event.enum";
 
 export class CreateTransactionDto {
@@ -24,4 +25,9 @@ export class CreateTransactionDto {
   @IsString()
   @IsNotEmpty()
   transactionHash: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  blockTimestamp?: Date;
 }

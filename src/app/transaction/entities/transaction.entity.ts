@@ -26,7 +26,18 @@ export class Transaction extends BaseCustomEntity {
   @Column({unique: true})
   transactionHash: string;
 
+  @Column({type: "timestamp", nullable: true})
+  blockTimestamp: Date;
+
   @ManyToOne(() => Wallet, (wallet) => wallet.transactions)
   @JoinColumn({name: "walletId"})
   wallet: Wallet;
+
+  /**
+   * Get the actual timestamp when this transaction occurred on the blockchain
+   * Falls back to createdAt if blockTimestamp is not available (for legacy data)
+   */
+  getActualTimestamp(): Date {
+    return this.blockTimestamp || this.createdAt;
+  }
 }

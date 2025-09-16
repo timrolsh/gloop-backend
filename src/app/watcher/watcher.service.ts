@@ -215,13 +215,18 @@ export class WatcherService implements OnModuleInit {
       this.logger.verbose(`USDC debt updated for wallet ${data.from}`);
     }
 
+    // Get the block to extract timestamp
+    const block = await this.provider.getBlock(event.log.blockNumber);
+    const blockTimestamp = new Date(block.timestamp * 1000); // Convert from Unix timestamp to Date
+
     const createTransactionDto: CreateTransactionDto = {
       walletAddress: data.from,
       tokenName: tokenName,
       asset: data.asset,
       amount,
       event: eventName,
-      transactionHash: event.log.transactionHash
+      transactionHash: event.log.transactionHash,
+      blockTimestamp
     };
 
     const createBlockDto: CreateBlockDto = {

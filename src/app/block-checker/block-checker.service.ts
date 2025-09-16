@@ -157,6 +157,10 @@ export class BlockCheckerService {
       }
       // const amountNumber = ethers.formatEther(amount);
       const transaction = await this.provider.getTransaction(log.transactionHash);
+      
+      // Get the block to extract timestamp
+      const block = await this.provider.getBlock(log.blockNumber);
+      const blockTimestamp = new Date(block.timestamp * 1000); // Convert from Unix timestamp to Date
 
       const createTransactionDto: CreateTransactionDto = {
         walletAddress: from,
@@ -164,7 +168,8 @@ export class BlockCheckerService {
         asset: asset,
         amount: parseFloat(amountNumber),
         event: this.getEnumValueFromName(parsedLog.name),
-        transactionHash: transaction.hash
+        transactionHash: transaction.hash,
+        blockTimestamp
       };
 
       await this.transactionService.create(createTransactionDto);

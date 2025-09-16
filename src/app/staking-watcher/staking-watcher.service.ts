@@ -143,6 +143,10 @@ export class StakingWatcherService implements OnModuleInit {
 
       const gloopAmount = parseFloat(ethers.formatEther(amount));
 
+      // Get the block to extract timestamp
+      const block = await this.provider.getBlock(event.log.blockNumber);
+      const blockTimestamp = new Date(block.timestamp * 1000); // Convert from Unix timestamp to Date
+
       const createStakingEventDto: CreateStakingEventDto = {
         walletAddress: userAddress,
         eventType: eventName === "Staked" ? StakingEventType.STAKE : StakingEventType.UNSTAKE,
@@ -150,6 +154,7 @@ export class StakingWatcherService implements OnModuleInit {
         lockDurationSeconds: lockDurationSecondsNum,
         transactionHash,
         blockNumber: event.log.blockNumber,
+        blockTimestamp,
         usdcLendingBalance,
         usdcBorrowingBalance,
         stakingBoostMultiplier,

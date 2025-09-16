@@ -12,6 +12,7 @@ export interface CreateStakingEventDto {
   lockDurationSeconds: number;
   transactionHash: string;
   blockNumber: number;
+  blockTimestamp?: Date;
   usdcLendingBalance?: number;
   usdcBorrowingBalance?: number;
   stakingBoostMultiplier?: number;
@@ -57,7 +58,8 @@ export class StakingEventService {
       usdcLendingBalanceAtEvent: eventData.usdcLendingBalance || 0,
       usdcBorrowingBalanceAtEvent: eventData.usdcBorrowingBalance || 0,
       stakingBoostMultiplier: eventData.stakingBoostMultiplier || 1,
-      gloopPriceUSD: eventData.gloopPriceUSD || 0
+      gloopPriceUSD: eventData.gloopPriceUSD || 0,
+      blockTimestamp: eventData.blockTimestamp
     });
 
     const savedEvent = await this.stakingEventRepository.save(stakingEvent);
@@ -296,8 +298,8 @@ export class StakingEventService {
       return 0;
     }
 
-    // Calculate time in current staking period
-    const stakingStartTime = stakeEvent.createdAt;
+    // Calculate time in current staking period using blockchain timestamp
+    const stakingStartTime = stakeEvent.getActualTimestamp();
     const now = new Date();
     const timeInStakingSeconds = Math.floor((now.getTime() - stakingStartTime.getTime()) / 1000);
 
