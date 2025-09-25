@@ -120,30 +120,29 @@ export class StakingEventService {
       const usdcBorrowingBalance = lastStakeEvent.usdcBorrowingBalanceAtEvent || 0;
       const stakingMultiplier = lastStakeEvent.stakingBoostMultiplier || 1;
 
-      // Time spent in staking period (in seconds)
-      const stakingStartTime = lastStakeEvent.createdAt;
-      const stakingEndTime = new Date();
-      const timeInStakingSeconds = Math.floor((stakingEndTime.getTime() - stakingStartTime.getTime()) / 1000);
-
-      // Apply the UPDATED formula (Kamino-style):
-      // Effective lending for boost = min(GLOOP staked, USDC lent)
-      // Effective borrowing for boost = min(GLOOP staked, USDC borrowed)
-      const effectiveLendingForBoost = Math.min(gloopStaked, usdcLendingBalance);
-      const effectiveBorrowingForBoost = Math.min(gloopStaked, usdcBorrowingBalance);
-
-      // Boosted Lending Points = 2 * effectiveLending * (multiplier - 1) * (t_locked / 1000)
-      // Boosted Borrowing Points = 1 * effectiveBorrowing * (multiplier - 1) * (t_locked / 1000)
-      const boostedLendingPoints = 2 * effectiveLendingForBoost * (stakingMultiplier - 1) * (timeInStakingSeconds / 1000);
-      const boostedBorrowingPoints = 1 * effectiveBorrowingForBoost * (stakingMultiplier - 1) * (timeInStakingSeconds / 1000);
-
-      const totalBoostedPoints = Math.max(0, boostedLendingPoints + boostedBorrowingPoints);
+      // Apply Kamino boost model (position-based, not time-based)
+      // Kamino model: For each 1 GLOOP staked, boost applies to $1 USD of position value
+      
+      const totalPositionValue = usdcLendingBalance + usdcBorrowingBalance;
+      
+      // Calculate coverage ratio (how much of position is covered by staking)
+      const coverageRatio = totalPositionValue > 0 ? Math.min(1, gloopStaked / totalPositionValue) : 1;
+      
+      // Get boost percentage (convert multiplier to percentage)
+      const boostPercentage = (stakingMultiplier - 1);
+      
+      // Calculate effective boost percentage
+      const effectiveBoostPercentage = coverageRatio * boostPercentage;
+      
+      // Apply boost to base points earned during staking
+      const totalBoostedPoints = basePointsEarnedDuringStaking * effectiveBoostPercentage;
 
       this.logger.log(
-        `Calculated boosted points for wallet ${walletId}: ` +
-        `Time: ${timeInStakingSeconds}s, GLOOP staked: ${gloopStaked}, ` +
-        `Lending: $${usdcLendingBalance}, Borrowing: $${usdcBorrowingBalance}, ` +
-        `Effective Lending Boost: $${effectiveLendingForBoost}, Effective Borrowing Boost: $${effectiveBorrowingForBoost}, ` +
-        `Multiplier: ${stakingMultiplier}, Boosted: ${totalBoostedPoints}`
+        `Kamino boosted points for wallet ${walletId}: ` +
+        `GLOOP staked: ${gloopStaked}, Position value: $${totalPositionValue}, ` +
+        `Coverage ratio: ${(coverageRatio * 100).toFixed(1)}%, Boost: ${(boostPercentage * 100).toFixed(1)}%, ` +
+        `Effective boost: ${(effectiveBoostPercentage * 100).toFixed(1)}%, ` +
+        `Base points earned: ${basePointsEarnedDuringStaking}, Boosted points: ${totalBoostedPoints.toFixed(2)}`
       );
 
       return {
@@ -281,41 +280,50 @@ export class StakingEventService {
   }
 
   /**
-   * Calculate current boosted points for an active staking period
-   * This is for users who are currently staking (not completed periods)
-   * Updated formula: 1 GLOOP = $1 USD for boost calculations (simplified)
+   * Calculate boosted points for current staking status using Kamino model
+   * Kamino model: For each 1 GLOOP staked, boost applies to $1 USD of position value
+   * Boost percentage applies to the rewards APY, not time-based multiplication
    */
-  async getCurrentBoostedPoints(walletId: string, currentBasePoints: number): Promise<number> {
+  async getCurrentBoostedPoints(walletId: string, currentBasePoints: number, currentUsdcBalance: number): Promise<number> {
     const {isStaking, stakeEvent} = await this.getCurrentStakingStatus(walletId);
 
     if (!isStaking || !stakeEvent) {
       return 0;
     }
 
+    // Kamino Formula Implementation:
+    // 1. Determine effective staking coverage
+    const gloopStaked = stakeEvent.gloopAmount; // 1 GLOOP = $1 USD coverage
+    const totalPositionValue = currentUsdcBalance; // Current USD position value
+    
+    // 2. Calculate coverage ratio (how much of position is covered by staking)
+    const coverageRatio = Math.min(1, gloopStaked / totalPositionValue);
+    
+    // 3. Get the boost percentage from the staking event
+    const boostPercentage = (stakeEvent.stakingBoostMultiplier || 1) - 1; // Convert multiplier to percentage
+    
+    // 4. Calculate effective boost percentage
+    const effectiveBoostPercentage = coverageRatio * boostPercentage;
+    
+    // 5. Calculate base points earned since staking began
     const basePointsEarnedSinceStaking = currentBasePoints - (stakeEvent.basePointsAtStake || 0);
     
     if (basePointsEarnedSinceStaking <= 0) {
       return 0;
     }
-
-    // Calculate time in current staking period using blockchain timestamp
-    const stakingStartTime = stakeEvent.getActualTimestamp();
-    const now = new Date();
-    const timeInStakingSeconds = Math.floor((now.getTime() - stakingStartTime.getTime()) / 1000);
-
-    // Apply UPDATED boost formula for current period (Kamino-style)
-    const gloopStaked = stakeEvent.gloopAmount; // No USD conversion needed (1 GLOOP = $1)
-    const usdcLendingBalance = stakeEvent.usdcLendingBalanceAtEvent || 0;
-    const usdcBorrowingBalance = stakeEvent.usdcBorrowingBalanceAtEvent || 0;
-    const stakingMultiplier = stakeEvent.stakingBoostMultiplier || 1;
-
-    // Effective amounts for boost calculation
-    const effectiveLendingForBoost = Math.min(gloopStaked, usdcLendingBalance);
-    const effectiveBorrowingForBoost = Math.min(gloopStaked, usdcBorrowingBalance);
-
-    const boostedLendingPoints = 2 * effectiveLendingForBoost * (stakingMultiplier - 1) * (timeInStakingSeconds / 1000);
-    const boostedBorrowingPoints = 1 * effectiveBorrowingForBoost * (stakingMultiplier - 1) * (timeInStakingSeconds / 1000);
-
-    return Math.max(0, boostedLendingPoints + boostedBorrowingPoints);
+    
+    // 6. Apply the effective boost to the base points earned during staking
+    const boostedPoints = basePointsEarnedSinceStaking * effectiveBoostPercentage;
+    
+    this.logger.debug(`Kamino Boost Calculation:
+      GLOOP Staked: ${gloopStaked}
+      Position Value: ${totalPositionValue}
+      Coverage Ratio: ${coverageRatio}
+      Boost %: ${boostPercentage * 100}%
+      Effective Boost %: ${effectiveBoostPercentage * 100}%
+      Base Points Since Staking: ${basePointsEarnedSinceStaking}
+      Boosted Points: ${boostedPoints}`);
+    
+    return Math.max(0, boostedPoints);
   }
 }
