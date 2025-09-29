@@ -74,34 +74,62 @@ export class WalletService {
   }
 
   async getUserDashboard(walletId: string): Promise<ResultDto<DashboardResponseDto>> {
-    const wallet = await this.walletRepository.findOne({where: {id: walletId}});
-    if (!wallet) {
-      throwCustomHttpException("User not found!", "User not found!");
+    try {
+      const wallet = await this.walletRepository.findOne({where: {id: walletId}});
+      if (!wallet) {
+        throwCustomHttpException("User not found!", "User not found!");
+      }
+
+      this.logger.log(`Getting dashboard for wallet: ${wallet.address}`);
+
+      // Query the leaderboard view for this specific user
+      const userLeaderboardQuery = `
+        SELECT
+          pl.wallet_address,
+          pl.total_points,
+          pl.total_lending_points,
+          pl.total_borrowing_points,
+          pl.current_staking_boost,
+          pl.rank
+        FROM
+          points_leaderboard AS pl
+        WHERE
+          pl.wallet_address = $1
+      `;
+
+      const userLeaderboardData = await this.dataSource.query(userLeaderboardQuery, [wallet.address]);
+      this.logger.log(`Leaderboard query result for ${wallet.address}:`, userLeaderboardData);
+
+      let dashboardData: DashboardResponseDto;
+
+      if (userLeaderboardData.length > 0) {
+        // User is on the leaderboard
+        const row = userLeaderboardData[0];
+        dashboardData = {
+          lendingUSDCPoints: Math.round(Number(row.total_lending_points)),
+          borrowingUSDCPoints: Math.round(Number(row.total_borrowing_points)),
+          totalEarnedPoints: Math.round(Number(row.total_points)),
+          rank: Number(row.rank)
+        };
+        this.logger.log(`User on leaderboard, dashboard data:`, dashboardData);
+      } else {
+        // User is not on the leaderboard (no points)
+        dashboardData = {
+          lendingUSDCPoints: 0,
+          borrowingUSDCPoints: 0,
+          totalEarnedPoints: 0,
+          rank: null
+        };
+        this.logger.log(`User not on leaderboard, returning zero values`);
+      }
+
+      // Transform the data using plainToInstance for proper DTO formatting
+      const res = plainToInstance(DashboardResponseDto, dashboardData, {excludeExtraneousValues: true});
+      return new ResultDto(res);
+    } catch (error) {
+      this.logger.error(`Error in getUserDashboard for wallet ${walletId}:`, error);
+      throw error;
     }
-
-    const rankQuery = this.walletRepository
-      .createQueryBuilder("wallet")
-      .select("COUNT(*)", "rank")
-      .where(
-        new Brackets((qb) => {
-          qb.where("wallet.totalEarnedPoints > :totalEarnedPoints", {
-            totalEarnedPoints: wallet.totalEarnedPoints
-          }).orWhere(
-            "wallet.totalEarnedPoints = :totalEarnedPoints AND wallet.createdAt < :createdAt",
-            {
-              totalEarnedPoints: wallet.totalEarnedPoints,
-              createdAt: wallet.createdAt
-            }
-          );
-        })
-      );
-
-    const rankResult = await rankQuery.getRawOne();
-    const rank = rankResult ? Number(rankResult.rank) + 1 : 1;
-
-    const res = plainToInstance(DashboardResponseDto, wallet, {excludeExtraneousValues: true});
-    res.rank = res.totalEarnedPoints > 0 ? rank : null;
-    return new ResultDto(res);
   }
 
   async findByAddress(address: string): Promise<Wallet> {
@@ -214,12 +242,9 @@ export class WalletService {
     // Get leaderboard data from the SQL view with pagination
     const leaderboardQuery = `
       SELECT
-        pl.*, 
-        w."stakingBoost"
+        pl.*
       FROM
         points_leaderboard AS pl
-      JOIN
-        wallets AS w ON pl.wallet_address = w.address
       ORDER BY pl.rank ASC
       LIMIT $1 OFFSET $2
     `;
@@ -248,11 +273,11 @@ export class WalletService {
       rank: Number(row.rank),
       address: row.wallet_address,
       lastUpdateTime: null, // Not available in the new view, set to null
-      lendingUSDCPoints: Math.round(Number(row.current_usdc_lending) * 2), // Approximate based on current balance
-      borrowingUSDCPoints: Math.round(Number(row.current_usdc_borrowing) * 1), // Approximate based on current balance
+      lendingUSDCPoints: Math.round(Number(row.total_lending_points)), // Direct sum from view
+      borrowingUSDCPoints: Math.round(Number(row.total_borrowing_points)), // Direct sum from view
       totalEarnedPoints: Math.round(Number(row.total_points)),
       claimedPoints: 0, // Set to 0 as per your example
-      stakingBoost: Number(row.stakingBoost)
+      stakingBoost: Number(row.current_staking_boost) * 100 // Convert from decimal to percentage
     }));
 
     const result = new ResultDto({
