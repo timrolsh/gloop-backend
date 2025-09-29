@@ -174,14 +174,61 @@ SELECT
 FROM points_per_period ppp;
     `);
 
-    // VIEW 2: Simple leaderboard - one row per wallet with totals and current status
+    // VIEW 2: Current staking boost for each wallet
     await queryRunner.query(`
-      CREATE VIEW points_leaderboard AS
+      CREATE OR REPLACE VIEW wallet_current_staking_boost AS
+      WITH staking_timeline AS (
+          SELECT 
+              "walletId",
+              "blockTimestamp",
+              "eventType",
+              "lockDurationSeconds",
+              CASE WHEN "eventType" = 'STAKE' THEN 1 ELSE -1 END AS stake_delta,
+              ROW_NUMBER() OVER (PARTITION BY "walletId" ORDER BY "blockTimestamp" DESC, id DESC) as rn
+          FROM staking_events
+      ),
+      wallet_positions AS (
+          SELECT 
+              "walletId",
+              SUM(stake_delta) OVER (PARTITION BY "walletId" ORDER BY "blockTimestamp" DESC, rn DESC) as running_position,
+              "eventType",
+              "lockDurationSeconds",
+              "blockTimestamp",
+              rn
+          FROM staking_timeline
+      ),
+      current_stakes AS (
+          SELECT DISTINCT ON ("walletId")
+              "walletId",
+              CASE WHEN running_position = 1 THEN "lockDurationSeconds" ELSE NULL END as current_lock_duration,
+              CASE WHEN running_position = 1 THEN "blockTimestamp" ELSE NULL END as stake_time
+          FROM wallet_positions
+          WHERE "eventType" = 'STAKE'
+          ORDER BY "walletId", "blockTimestamp" DESC, rn DESC
+      )
+      SELECT 
+          w.id as wallet_id,
+          w.address as wallet_address,
+          CASE 
+              WHEN cs.current_lock_duration IS NULL THEN 0
+              WHEN cs.stake_time IS NULL THEN 0
+              WHEN cs.stake_time + (cs.current_lock_duration || ' seconds')::interval < NOW() THEN 0.1
+              ELSE get_staking_boost_multiplier(cs.current_lock_duration)
+          END as current_staking_boost
+      FROM wallets w
+      LEFT JOIN current_stakes cs ON w.id = cs."walletId";
+    `);
+
+    // VIEW 3: Simple leaderboard - one row per wallet with totals and current status
+    await queryRunner.query(`
+      CREATE OR REPLACE VIEW points_leaderboard AS
       WITH wallet_totals AS (
           SELECT
               wallet_id,
               wallet_address,
-              SUM(total_period_points) AS total_points
+              SUM(total_period_points) AS total_points,
+              SUM(base_lending_points + boosted_lending_points) AS total_lending_points,
+              SUM(base_borrowing_points + boosted_borrowing_points) AS total_borrowing_points
           FROM wallet_points_detailed
           GROUP BY wallet_id, wallet_address
       ),
@@ -199,13 +246,17 @@ FROM points_per_period ppp;
       SELECT
           wt.wallet_address,
           wt.total_points,
+          wt.total_lending_points,
+          wt.total_borrowing_points,
           cs.current_usdc_lending,
           cs.current_usdc_borrowing,
           cs.current_gloop_staked,
           cs.current_boost_multiplier,
+          wsb.current_staking_boost,
           RANK() OVER (ORDER BY wt.total_points DESC) as rank
       FROM wallet_totals wt
       JOIN current_states cs ON wt.wallet_id = cs.wallet_id
+      LEFT JOIN wallet_current_staking_boost wsb ON wt.wallet_id = wsb.wallet_id
       WHERE wt.total_points > 0
       ORDER BY wt.total_points DESC;
     `);
@@ -213,6 +264,7 @@ FROM points_per_period ppp;
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP VIEW IF EXISTS points_leaderboard CASCADE`);
+    await queryRunner.query(`DROP VIEW IF EXISTS wallet_current_staking_boost CASCADE`);
     await queryRunner.query(`DROP VIEW IF EXISTS wallet_points_detailed CASCADE`);
     await queryRunner.query(`DROP FUNCTION IF EXISTS get_staking_boost_multiplier(NUMERIC) CASCADE`);
   }
