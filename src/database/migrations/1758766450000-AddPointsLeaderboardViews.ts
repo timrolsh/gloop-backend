@@ -28,14 +28,14 @@ export class AddPointsLeaderboardViews1758766450000 implements MigrationInterfac
     await queryRunner.query(`
 CREATE OR REPLACE VIEW wallet_points_detailed AS
 WITH
-    -- Define program start time (Unix timestamp: 1757007314)
+    -- Define program start time (Unix timestamp: 1759237200)
     program_start AS (
-        SELECT TO_TIMESTAMP(1757007314) AS ts
+        SELECT TO_TIMESTAMP(1759237200) AS ts
     ),
 
-    -- Define program end time (Unix timestamp: 1757871314)
+    -- Define program end time (Unix timestamp: 1759410000)
     program_end AS (
-        SELECT TO_TIMESTAMP(1757871314) AS ts
+        SELECT TO_TIMESTAMP(1759410000) AS ts
     ),
 
     -- **MODIFIED**: Determine the effective end time for point calculation.
@@ -99,6 +99,22 @@ WITH
                CASE WHEN "eventType" = 'STAKE' THEN "blockTimestamp" ELSE NULL END AS new_stake_time
         FROM staking_events s, program_start ps, program_end pe
         WHERE s."blockTimestamp" >= ps.ts AND s."blockTimestamp" < pe.ts
+        UNION ALL
+        -- Add synthetic LOCK_EXPIRY events when a lock period ends (user drops from locked boost to 10% unlocked boost)
+        SELECT "walletId" AS wallet_id, 
+               "blockTimestamp" + (("lockDurationSeconds" || ' seconds')::interval) AS event_time, 
+               'LOCK_EXPIRY' AS event_type, 
+               id AS source_id,
+               0::numeric AS lending_delta, 
+               0::numeric AS borrowing_delta,
+               0::numeric AS staking_delta, 
+               0::numeric AS new_lock_duration,  -- Set to 0 to indicate unlocked but still staked (10% boost)
+               "blockTimestamp" AS new_stake_time  -- Keep original stake time
+        FROM staking_events s, program_start ps, effective_end_time eet
+        WHERE s."eventType" = 'STAKE' 
+          AND s."lockDurationSeconds" > 0
+          AND s."blockTimestamp" + ((s."lockDurationSeconds" || ' seconds')::interval) >= ps.ts 
+          AND s."blockTimestamp" + ((s."lockDurationSeconds" || ' seconds')::interval) < eet.ts
     ),
 
     -- Unify initial state and subsequent events into a single, time-ordered series for each wallet.
@@ -210,9 +226,12 @@ FROM points_per_period ppp;
           w.id as wallet_id,
           w.address as wallet_address,
           CASE 
+              -- No stake or unstaked -> 0% boost
               WHEN cs.current_lock_duration IS NULL THEN 0
               WHEN cs.stake_time IS NULL THEN 0
+              -- Stake is active but lock has expired -> 10% boost (unlocked staking)
               WHEN cs.stake_time + (cs.current_lock_duration || ' seconds')::interval < NOW() THEN 0.1
+              -- Stake is active and lock is still valid -> use the boost multiplier for the lock duration
               ELSE get_staking_boost_multiplier(cs.current_lock_duration)
           END as current_staking_boost
       FROM wallets w
@@ -226,9 +245,9 @@ FROM points_per_period ppp;
           SELECT
               wallet_id,
               wallet_address,
-              SUM(total_period_points) AS total_points,
-              SUM(base_lending_points + boosted_lending_points) AS total_lending_points,
-              SUM(base_borrowing_points + boosted_borrowing_points) AS total_borrowing_points
+              SUM(GREATEST(total_period_points, 0)) AS total_points,
+              SUM(GREATEST(base_lending_points + boosted_lending_points, 0)) AS total_lending_points,
+              SUM(GREATEST(base_borrowing_points + boosted_borrowing_points, 0)) AS total_borrowing_points
           FROM wallet_points_detailed
           GROUP BY wallet_id, wallet_address
       ),
