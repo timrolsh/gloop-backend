@@ -28,14 +28,14 @@ export class AddPointsLeaderboardViews1758766450000 implements MigrationInterfac
     await queryRunner.query(`
 CREATE OR REPLACE VIEW wallet_points_detailed AS
 WITH
-    -- Define program start time (Unix timestamp: 1759237200)
+    -- Define program start time (Unix timestamp: 1761663600)
     program_start AS (
-        SELECT TO_TIMESTAMP(1759237200) AS ts
+        SELECT TO_TIMESTAMP(1761663600) AS ts
     ),
 
-    -- Define program end time (Unix timestamp: 1759410000)
+    -- Define program end time (Unix timestamp: 1769443200)
     program_end AS (
-        SELECT TO_TIMESTAMP(1759410000) AS ts
+        SELECT TO_TIMESTAMP(1769443200) AS ts
     ),
 
     -- **MODIFIED**: Determine the effective end time for point calculation.
