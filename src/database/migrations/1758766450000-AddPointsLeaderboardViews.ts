@@ -144,7 +144,8 @@ WITH
         SELECT
             wallet_id, wallet_address, event_time,
             SUM(lending_delta) OVER (PARTITION BY wallet_id ORDER BY event_time, event_type, source_id) AS usdc_lending_balance,
-            SUM(borrowing_delta) OVER (PARTITION BY wallet_id ORDER BY event_time, event_type, source_id) AS usdc_borrowing_balance,
+            -- **FIX**: Ensure borrowing balance never goes negative (can happen from interest repayments)
+            GREATEST(SUM(borrowing_delta) OVER (PARTITION BY wallet_id ORDER BY event_time, event_type, source_id), 0) AS usdc_borrowing_balance,
             SUM(staking_delta) OVER (PARTITION BY wallet_id ORDER BY event_time, event_type, source_id) AS gloop_staked,
             FIRST_VALUE(new_lock_duration) OVER (PARTITION BY wallet_id, lock_group ORDER BY event_time, event_type, source_id) AS current_lock_duration,
             FIRST_VALUE(new_stake_time) OVER (PARTITION BY wallet_id, stake_group ORDER BY event_time, event_type, source_id) AS stake_start_time,
@@ -164,7 +165,7 @@ WITH
             EXTRACT(EPOCH FROM (LEAST(next_event_time, (SELECT ts FROM effective_end_time)) - event_time)) AS period_seconds,
             usdc_lending_balance, usdc_borrowing_balance, gloop_staked,
             CASE
-                WHEN gloop_staked <= 0 OR usdc_lending_balance < 100 THEN 0
+                WHEN gloop_staked <= 0 OR usdc_lending_balance < 85 THEN 0
                 WHEN current_lock_duration IS NULL THEN 0.1
                 WHEN current_lock_duration = 0 THEN 0.1
                 WHEN stake_start_time IS NULL THEN 0.1
@@ -181,12 +182,14 @@ WITH
 SELECT
     ppp.wallet_id, ppp.wallet_address, ppp.period_start, ppp.period_end, ppp.period_seconds,
     ppp.usdc_lending_balance, ppp.usdc_borrowing_balance, ppp.gloop_staked, ppp.boost_multiplier,
-    CASE WHEN ppp.usdc_lending_balance >= 100 THEN (2 * ppp.usdc_lending_balance * ppp.period_seconds / 1000) ELSE 0 END AS base_lending_points,
-    CASE WHEN ppp.usdc_lending_balance >= 100 THEN (1 * ppp.usdc_borrowing_balance * ppp.period_seconds / 1000) ELSE 0 END AS base_borrowing_points,
-    CASE WHEN ppp.usdc_lending_balance >= 100 THEN (2 * LEAST(ppp.gloop_staked, ppp.usdc_lending_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) ELSE 0 END AS boosted_lending_points,
-    CASE WHEN ppp.usdc_lending_balance >= 100 THEN (1 * LEAST(ppp.gloop_staked, ppp.usdc_borrowing_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) ELSE 0 END AS boosted_borrowing_points,
-    (CASE WHEN ppp.usdc_lending_balance >= 100 THEN (2 * ppp.usdc_lending_balance * ppp.period_seconds / 1000) + (1 * ppp.usdc_borrowing_balance * ppp.period_seconds / 1000) + (2 * LEAST(ppp.gloop_staked, ppp.usdc_lending_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) + (1 * LEAST(ppp.gloop_staked, ppp.usdc_borrowing_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) ELSE 0 END) as total_period_points,
-    SUM(CASE WHEN ppp.usdc_lending_balance >= 100 THEN (2 * ppp.usdc_lending_balance * ppp.period_seconds / 1000) + (1 * ppp.usdc_borrowing_balance * ppp.period_seconds / 1000) + (2 * LEAST(ppp.gloop_staked, ppp.usdc_lending_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) + (1 * LEAST(ppp.gloop_staked, ppp.usdc_borrowing_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) ELSE 0 END) OVER (PARTITION BY ppp.wallet_id ORDER BY ppp.period_start) as cumulative_total_points
+    CASE WHEN ppp.usdc_lending_balance >= 85 THEN (2 * ppp.usdc_lending_balance * ppp.period_seconds / 1000) ELSE 0 END AS base_lending_points,
+    -- **FIX**: Ensure borrowing points are never negative (borrowing balance is already clamped above)
+    CASE WHEN ppp.usdc_lending_balance >= 85 THEN (1 * ppp.usdc_borrowing_balance * ppp.period_seconds / 1000) ELSE 0 END AS base_borrowing_points,
+    CASE WHEN ppp.usdc_lending_balance >= 85 THEN (2 * LEAST(ppp.gloop_staked, ppp.usdc_lending_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) ELSE 0 END AS boosted_lending_points,
+    -- **FIX**: Borrowing balance is already clamped to 0 in running_states, so this will be non-negative
+    CASE WHEN ppp.usdc_lending_balance >= 85 THEN (1 * LEAST(ppp.gloop_staked, ppp.usdc_borrowing_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) ELSE 0 END AS boosted_borrowing_points,
+    (CASE WHEN ppp.usdc_lending_balance >= 85 THEN (2 * ppp.usdc_lending_balance * ppp.period_seconds / 1000) + (1 * ppp.usdc_borrowing_balance * ppp.period_seconds / 1000) + (2 * LEAST(ppp.gloop_staked, ppp.usdc_lending_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) + (1 * LEAST(ppp.gloop_staked, ppp.usdc_borrowing_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) ELSE 0 END) as total_period_points,
+    SUM(CASE WHEN ppp.usdc_lending_balance >= 85 THEN (2 * ppp.usdc_lending_balance * ppp.period_seconds / 1000) + (1 * ppp.usdc_borrowing_balance * ppp.period_seconds / 1000) + (2 * LEAST(ppp.gloop_staked, ppp.usdc_lending_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) + (1 * LEAST(ppp.gloop_staked, ppp.usdc_borrowing_balance) * ppp.boost_multiplier * ppp.period_seconds / 1000) ELSE 0 END) OVER (PARTITION BY ppp.wallet_id ORDER BY ppp.period_start) as cumulative_total_points
 FROM points_per_period ppp;
     `);
 
