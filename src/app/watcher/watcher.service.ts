@@ -178,13 +178,21 @@ export class WatcherService implements OnModuleInit {
 
   private async handleEvent(eventName: ExistsEvent, data: any, event: ethers.ContractEventPayload) {
     let amount = 0;
+    let tokenName: string = null;
 
-    const tokenName = this.getTokenName(data.asset);
-
-    if (tokenName === "USDC") {
-      amount = parseFloat(formatUnits(data.amount, 6));
+    // Liquidation events have different structure (no asset/amount, but seizedValue)
+    if (eventName === ExistsEvent.LIQUIDATION) {
+      // For liquidations, we'll store the seized value in USDC terms
+      amount = parseFloat(formatUnits(data.seizedValue, 6));
+      tokenName = "USDC"; // Seized value is in USDC
     } else {
-      amount = parseFloat(formatUnits(data.amount, 18));
+      tokenName = this.getTokenName(data.asset);
+      
+      if (tokenName === "USDC") {
+        amount = parseFloat(formatUnits(data.amount, 6));
+      } else {
+        amount = parseFloat(formatUnits(data.amount, 18));
+      }
     }
 
     if (eventName === ExistsEvent.LIQUIDATION) {
@@ -219,10 +227,15 @@ export class WatcherService implements OnModuleInit {
     const block = await this.provider.getBlock(event.log.blockNumber);
     const blockTimestamp = new Date(block.timestamp * 1000); // Convert from Unix timestamp to Date
 
+    // For liquidation events, use liquidated user's address; otherwise use 'from'
+    const walletAddress = eventName === ExistsEvent.LIQUIDATION ? data.liquidated : data.from;
+    // For liquidation events, asset is null (we store USDC value); otherwise use the asset
+    const asset = eventName === ExistsEvent.LIQUIDATION ? null : data.asset;
+
     const createTransactionDto: CreateTransactionDto = {
-      walletAddress: data.from,
+      walletAddress: walletAddress,
       tokenName: tokenName,
-      asset: data.asset,
+      asset: asset,
       amount,
       event: eventName,
       transactionHash: event.log.transactionHash,

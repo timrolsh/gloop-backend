@@ -12,7 +12,6 @@ import {PaginationService} from "src/common/querying/pagination.service";
 import {PaginationDto} from "src/common/querying/dto/pagination.dto";
 import {DefaultPageSize} from "src/common/querying/util/querying.constants";
 import {ConfigService} from "@nestjs/config";
-import {ethers} from "ethers";
 import {ABI} from "../watcher/data/abi";
 
 @Injectable()
@@ -82,7 +81,10 @@ export class TransactionService {
 
     try {
       await this.populateCollateralData(assets, walletData, limit, offset);
+      // console.log('[getLiquidations] After collateral data:', JSON.stringify(walletData, null, 2));
+      
       await this.populateUsdcDebtData(walletData, limit, offset, cryptoConfig.usdc);
+      // console.log('[getLiquidations] After USDC debt data:', JSON.stringify(walletData, null, 2));
 
       const data = Object.values(walletData);
       const totalWallets = await this.getTotalWalletsCount(assets, cryptoConfig.usdc);
@@ -95,6 +97,8 @@ export class TransactionService {
           return healthFactorA - healthFactorB;
         });
 
+      // console.log('[getLiquidations] Final orderData:', JSON.stringify(orderData, null, 2));
+
       const meta = this.paginationService.createMeta(limit, page, totalWallets);
 
       const result = new ResultDto(
@@ -103,6 +107,7 @@ export class TransactionService {
       );
       result.paging = meta;
 
+      // console.log('[getLiquidations] Returning result with', orderData.length, 'positions');
       return result;
     } catch (error) {
       console.error(`Error fetching liquidations: ${error.message}`);
@@ -157,8 +162,10 @@ export class TransactionService {
     asset: {name: string; address: string},
     walletData: Record<string, LiquidationRequestDto>
   ) {
+    // console.log(`[processCollateralResults] Processing ${results.length} results for ${asset.name}`);
     for (const result of results) {
       const {walletAddress, healthFactor, totalValue, assetAddress, borrowRepayDetails} = result;
+      // console.log(`[processCollateralResults] Wallet: ${walletAddress}, HF: ${healthFactor}, totalValue: ${totalValue}`);
 
       if (!walletData[walletAddress]) {
         walletData[walletAddress] = this.initializeWallet(walletAddress, healthFactor);
@@ -204,8 +211,10 @@ export class TransactionService {
       .where("transaction.asset = :usdcAddress", {usdcAddress})
       .select("wallet.address", "walletAddress")
       .addSelect("wallet.usdcDebt", "usdcDebt")
+      .addSelect("wallet.healthFactor", "healthFactor")
       .groupBy("wallet.address")
       .addGroupBy("wallet.usdcDebt")
+      .addGroupBy("wallet.healthFactor")
       .skip(offset)
       .take(limit)
       .getRawMany();
@@ -217,10 +226,13 @@ export class TransactionService {
     results: any[],
     walletData: Record<string, LiquidationRequestDto>
   ) {
+    // console.log(`[processUsdcDebtResults] Processing ${results.length} USDC debt results`);
     for (const result of results) {
       const {walletAddress, healthFactor, usdcDebt} = result;
+      // console.log(`[processUsdcDebtResults] Wallet: ${walletAddress}, HF: ${healthFactor}, usdcDebt: ${usdcDebt}`);
       if (Number(usdcDebt) > 0) {
         if (!walletData[walletAddress]) {
+          // console.log(`[processUsdcDebtResults] Initializing new wallet with HF: ${healthFactor}`);
           walletData[walletAddress] = this.initializeWallet(walletAddress, healthFactor);
         }
 
