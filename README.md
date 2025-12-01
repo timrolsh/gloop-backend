@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Gloop Finance backend is a NestJS web server  that powers the Gloop Finance DeFi protocol on Arbitrum. [Gloop Finance](https://gloop.finance/) is a GMX yield optimizer offering two main features:
+The Gloop Finance backend is a NestJS web server that powers the Gloop Finance DeFi protocol on Arbitrum. [Gloop Finance](https://gloop.finance/) is a GMX yield optimizer offering two main features:
 
 1. **GMI (GM Index Token)**: An ERC-20 index token that provides a curated basket of GMX market tokens (GM: BTC/USD, GM: ETH/USD, GM: SOL/USD, GM: SWAP-ONLY) with algorithmically optimized weights for optimal risk-return ratios.
 
